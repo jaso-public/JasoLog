@@ -1,0 +1,58 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "jaso.log.protocol";
+option java_outer_classname = "JasoLogProto";
+option objc_class_prefix = "JL";
+
+package JasoLog;
+
+/*
+    Log Registry Service
+    Maps a names log to discovery service.
+    The registry could be a public service that simply
+    maps a name to a list of endpoints of a log discovery 
+    service.  For now we will just hard code the location 
+    of the log discovery service
+*/
+
+/*
+    Log Discovery Service
+    This service is used to find log servers hosting
+    partitions of the log. When a server first attaches
+    to a log it can ask for the log server hosting the 
+    partition for the empty string.  This can be the starting 
+    point for learning about the structure of the log.  
+*/
+service LogDiscoveryService {
+    rpc FindServer(FindServerRequest) returns (FindServerResponse) {}
+}
+
+/*
+    LogService
+    The Log Service is the API provided to log clients which
+    allows the client to make log requests and to receive a
+    stream of log events from the log servers.
+*/
+service LogService {
+    rpc Log(stream LogRequest) returns (stream LogEvent) {}
+}
+
+
+message LogRequest {
+  string message = 1;
+}
+
+message LogEvent {
+  string reply = 1;
+}
+
+
+message FindServerRequest {
+  string name = 1;
+}
+
+message FindServerResponse {
+  string message = 1;
+}
