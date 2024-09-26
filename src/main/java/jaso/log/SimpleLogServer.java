@@ -5,9 +5,10 @@ import java.io.IOException;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
+import jaso.log.protocol.Event;
 import jaso.log.protocol.LogEvent;
-import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.Request;
 
 public class SimpleLogServer {
 
@@ -25,17 +26,17 @@ public class SimpleLogServer {
 
     static class LogServiceImpl extends LogServiceGrpc.LogServiceImplBase {
         @Override
-        public StreamObserver<LogRequest> log(final StreamObserver<LogEvent> responseObserver) {
-            return new StreamObserver<LogRequest>() {
+        public StreamObserver<Request> send(final StreamObserver<Event> responseObserver) {
+            return new StreamObserver<Request>() {
                 @Override
-                public void onNext(LogRequest chatMessage) {
+                public void onNext(Request request) {
                     // Handle each message received from the client
-                    System.out.println("Received message from client: " + chatMessage.getMessage());
+                    System.out.println("Received message from client: " + request.getRequestTypeCase());
 
+                    LogEvent le = LogEvent.newBuilder().setKey("key").setValue("val").build();
+                    
                     // Respond to the client with a ChatResponse message
-                    LogEvent response = LogEvent.newBuilder()
-                            .setReply("Server received: " + chatMessage.getMessage())
-                            .build();
+                    Event response = Event.newBuilder().setLogEvent(le).build();
                     responseObserver.onNext(response);  // Send the response to the client
                 }
 

@@ -29,25 +29,6 @@ service LogDiscoveryService {
     rpc FindServer(FindServerRequest) returns (FindServerResponse) {}
 }
 
-/*
-    LogService
-    The Log Service is the API provided to log clients which
-    allows the client to make log requests and to receive a
-    stream of log events from the log servers.
-*/
-service LogService {
-    rpc Log(stream LogRequest) returns (stream LogEvent) {}
-}
-
-
-message LogRequest {
-  string message = 1;
-}
-
-message LogEvent {
-  string reply = 1;
-}
-
 
 message FindServerRequest {
   string name = 1;
@@ -56,3 +37,52 @@ message FindServerRequest {
 message FindServerResponse {
   string message = 1;
 }
+
+
+
+/*
+    LogService
+    The Log Service is the API provided to log clients which
+    allows the client to make log requests and to receive a
+    stream of log events from the log servers.
+*/
+service LogService {
+    rpc Send(stream Request) returns (stream Event) {}
+}
+
+
+message Request {
+    oneof request_type {
+        LogRequest log_request = 1;
+        SplitRequest split_request = 2;
+    }
+}
+
+message LogRequest {
+    string key = 1;
+    string value = 2;
+}   
+
+message SplitRequest {
+    string key = 1;
+    string split = 2;
+}
+
+
+message Event {
+    oneof event_type {
+        LogEvent log_event = 1;
+        SplitEvent split_event = 2;
+    }
+}
+
+message LogEvent {
+    string key = 1;
+    string value = 2;
+}
+
+message SplitEvent {
+    string key = 1;
+    string split = 2;
+}
+

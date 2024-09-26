@@ -6,9 +6,10 @@ import java.util.concurrent.TimeUnit;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import jaso.log.protocol.LogEvent;
+import jaso.log.protocol.Event;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.Request;
 
 public class SimpleLogClient {
 
@@ -25,11 +26,11 @@ public class SimpleLogClient {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Call the Chat RPC and create a StreamObserver to handle responses
-        StreamObserver<LogRequest> requestObserver = asyncStub.log(new StreamObserver<LogEvent>() {
+        StreamObserver<Request> requestObserver = asyncStub.send(new StreamObserver<Event>() {
             @Override
-            public void onNext(LogEvent chatResponse) {
+            public void onNext(Event event) {
                 // Handle each response from the server
-                System.out.println("Received from server: " + chatResponse.getReply());
+                System.out.println("Received from server: " + event);
             }
 
             @Override
@@ -49,10 +50,13 @@ public class SimpleLogClient {
 
         // Send a stream of messages to the server
         for (int i = 1; i <= 5; i++) {
-            LogRequest message = LogRequest.newBuilder()
-                    .setMessage("Message " + i)
-                    .build();
-            requestObserver.onNext(message);
+        	
+            LogRequest lr = LogRequest.newBuilder().setKey("key").setValue("val").build();
+            
+            // Respond to the client with a ChatResponse message
+            Request request = Request.newBuilder().setLogRequest(lr).build();
+  
+            requestObserver.onNext(request);
             Thread.sleep(1000);  // Simulate delay between messages
         }
 
