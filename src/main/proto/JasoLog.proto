@@ -86,3 +86,21 @@ message SplitEvent {
     string split = 2;
 }
 
+
+
+service QueryService {
+    rpc Query(QueryRequest) returns (QueryResponse) {}
+}
+
+
+message QueryRequest {
+    string key = 1;
+}   
+
+message QueryResponse {
+    string key = 1;
+    string value = 2;
+    
+    
+}
+

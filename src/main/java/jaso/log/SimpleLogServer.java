@@ -49,6 +49,7 @@ public class SimpleLogServer {
                 @Override
                 public void onCompleted() {
                     // Client has finished sending messages, so we close the response stream
+                	System.out.println("onCompleted");
                     responseObserver.onCompleted();
                 }
             };
