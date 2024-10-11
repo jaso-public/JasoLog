@@ -15,6 +15,7 @@ public class LogServiceImpl extends LogServiceGrpc.LogServiceImplBase {
 	
     @Override
     public StreamObserver<Request> send(final StreamObserver<Event> responseObserver) {
-    	return new RequestStreamObserver(responseObserver, logDataStore);
+    	RequestStreamObserver result = new RequestStreamObserver(responseObserver, logDataStore);
+    	return result;
     }
 }

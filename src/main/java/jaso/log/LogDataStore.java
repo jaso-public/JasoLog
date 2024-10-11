@@ -1,5 +1,6 @@
 package jaso.log;
 
+import java.util.HashSet;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -7,6 +8,7 @@ import jaso.log.protocol.Accepted;
 import jaso.log.protocol.Conflict;
 import jaso.log.protocol.Duplicate;
 import jaso.log.protocol.Event;
+import jaso.log.protocol.LogEvent;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.TooLate;
 import jaso.log.sim.LSN;
@@ -18,6 +20,7 @@ public class LogDataStore {
 	AtomicLong nextLsn = new AtomicLong(1);
 	TreeMap<Long, LogEntry> log = new TreeMap<>();
 	
+	HashSet<RequestStreamObserver> observers = new HashSet<>();
 	
 	public Event log(LogRequest logRequest) {
     	
@@ -59,6 +62,10 @@ public class LogDataStore {
     	mdm.add(new LSN(lsn), rid,  logRequest.getKey());
     	
     	// inform all subscribers.
+    	for(RequestStreamObserver observer : observers) {
+            LogEvent event = LogEvent.newBuilder().setKey(logRequest.getKey()).setValue(logRequest.getValue()).setLsn(lsn).build();                
+            observer.send(Event.newBuilder().setLogEvent(event).build());
+    	}
     	
 		Accepted event = Accepted.newBuilder().setRequestId(rid).setLsn(lsn).build();                
         return Event.newBuilder().setAcceptedEvent(event).build();

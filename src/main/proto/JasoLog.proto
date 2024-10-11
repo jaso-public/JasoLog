@@ -54,7 +54,8 @@ service LogService {
 message Request {
     oneof request_type {
         LogRequest log_request = 1;
-        SplitRequest split_request = 2;
+        SubscribeRequest subscribe_request = 2;
+        SplitRequest split_request = 3;
     }
 }
 
@@ -63,7 +64,11 @@ message LogRequest {
     string value = 2;
     string requestId = 3;
     optional int64 minLsn = 4;
+}
+
+message SubscribeRequest {
 }   
+   
 
 message SplitRequest {
     string key = 1;

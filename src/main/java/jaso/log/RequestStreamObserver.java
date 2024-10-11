@@ -22,10 +22,15 @@ public class RequestStreamObserver implements StreamObserver<Request> {
     	
     	RequestTypeCase rtc = request.getRequestTypeCase();
     	if(rtc == RequestTypeCase.LOG_REQUEST) {
-    		logDataStore.log(request.getLogRequest());
-    		
+    		Event event = logDataStore.log(request.getLogRequest());
+    		responseObserver.onNext(event);
+    		return;
     	}
     	
+    	if(rtc == RequestTypeCase.SUBSCRIBE_REQUEST) {
+    		logDataStore.observers.add(this);
+    		return;
+    	}
 
     	LogEvent le = LogEvent.newBuilder().setKey("key").setValue("val").build();
         
@@ -37,6 +42,7 @@ public class RequestStreamObserver implements StreamObserver<Request> {
     @Override
     public void onError(Throwable throwable) {
         // Handle any errors in the stream
+    	logDataStore.observers.remove(this);
         throwable.printStackTrace();
     }
 
@@ -44,7 +50,12 @@ public class RequestStreamObserver implements StreamObserver<Request> {
     public void onCompleted() {
         // Client has finished sending messages, so we close the response stream
     	System.out.println("onCompleted");
+    	logDataStore.observers.remove(this);
         responseObserver.onCompleted();
+    }
+    
+    void send(Event event) {
+    	responseObserver.onNext(event);
     }
 
 }
