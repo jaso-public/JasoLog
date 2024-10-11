@@ -1,7 +1,7 @@
 package jaso.log.sim;
 
 import java.util.HashMap;
-import java.util.UUID;
+
 
 public class MdManager {
 	private LogEntryMetadata head = null;
@@ -9,33 +9,51 @@ public class MdManager {
 	private int count = 0;
 	private int maxEntries = 100;
 	
-	private HashMap<UUID, LSN> byUUID = new HashMap<>();
+	private HashMap<String, LSN> byRequestId = new HashMap<>();
 	private HashMap<String, LSN> byKey = new HashMap<>();
 	
 	static class LogEntryMetadata {
 		final LSN lsn;
-		final UUID uuid;
+		final String requestId;
 		final String key;
 		LogEntryMetadata next = null;
 		
-		public LogEntryMetadata(LSN lsn, UUID uuid, String key) {
+		public LogEntryMetadata(LSN lsn, String requestId, String key) {
 			this.lsn = lsn;
-			this.uuid = uuid;
+			this.requestId = requestId;
 			this.key = key;
 		}
 	}
+	
+	public Long getLowestLsn() {
+		if(head == null) return null;
+		return head.lsn.lsn;
+	}
+	
+	public Long getLastLsn(String key) {
+		LSN lsn = byKey.get(key);
+		if(lsn == null) return null;
+		return lsn.lsn;
+	}
+
+	public Long getLsnByRequestId(String requestId) {
+		LSN lsn = byRequestId.get(requestId);
+		if(lsn == null) return null;
+		return lsn.lsn;
+	}
+
 
 	
-	public void add(LSN lsn, UUID uuid, String key) {
+	public void add(LSN lsn, String requestId, String key) {
 		while(count >= maxEntries) {
 			LogEntryMetadata old = head;
 			head = head.next;
 			count--;
-			if(old.uuid != null) byUUID.remove(old.uuid);
+			if(old.requestId != null) byRequestId.remove(old.requestId);
 			byKey.remove(old.key);
 		}
 		
-		LogEntryMetadata le = new LogEntryMetadata(lsn, uuid, key);
+		LogEntryMetadata le = new LogEntryMetadata(lsn, requestId, key);
 		if(tail == null) {
 			head = le;
 			tail = le;
@@ -44,7 +62,10 @@ public class MdManager {
 			tail = le;
 		}
 		count++;
-		if(uuid!=null) byUUID.put(uuid, lsn);
+		if(requestId!=null) byRequestId.put(requestId, lsn);
 		byKey.put(key, lsn);
 	}
+
+
+
 }

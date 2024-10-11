@@ -9,7 +9,6 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
-import jaso.log.SimpleLogServer.LogServiceImpl;
 import jaso.log.protocol.Event;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
@@ -18,7 +17,10 @@ import jaso.log.protocol.Request;
 public class ClientServerTest {
 
 	public static void main(String[] args) throws IOException, InterruptedException {
-        Server server = ServerBuilder.forPort(0).addService(new LogServiceImpl()).build();
+		
+		LogDataStore lds = new LogDataStore();
+		
+        Server server = ServerBuilder.forPort(0).addService(new LogServiceImpl(lds)).build();
 
         System.out.println("Starting server...");
         server.start();
@@ -60,7 +62,7 @@ public class ClientServerTest {
         // Send a stream of messages to the server
         for (int i = 1; i <= 5; i++) {
         	
-            LogRequest lr = LogRequest.newBuilder().setKey("key").setValue("val").build();
+            LogRequest lr = LogRequest.newBuilder().setKey("key").setValue("val").setMinLsn(123).build();
             
             // Respond to the client with a ChatResponse message
             Request request = Request.newBuilder().setLogRequest(lr).build();
