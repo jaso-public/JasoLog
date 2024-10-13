@@ -1,13 +1,11 @@
 package jaso.log;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.Event;
-import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
 import jaso.log.protocol.Request;
 import jaso.log.protocol.SubscribeRequest;
@@ -31,7 +29,7 @@ public class SimpleSubscriber {
             @Override
             public void onNext(Event event) {
                 // Handle each response from the server
-                System.out.println("Received from server: " + event);
+                System.out.println("Subscriber received from server: " + event);
             }
 
             @Override
