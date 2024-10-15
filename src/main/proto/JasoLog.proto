@@ -26,24 +26,28 @@ package JasoLog;
     point for learning about the structure of the log.  
 */
 service LogDiscoveryService {
-    rpc find(FindServerRequest) returns (FindServerResponse) {}
+    rpc find(FindServerRequest) returns (Partition) {}
+    rpc update(Partition) returns (Partition) {}
 }
 
-
-message FindServerRequest {
-  string name = 1;
-  string key = 2;
-}
 
 message Endpoint {
 	string host_address = 1;
 	int32 host_port = 2;
 }
-	
-message FindServerResponse {
-  string loKey = 1;
-  string hiKey = 2;
-  repeat Endpoint endpoints = 3;  
+
+message Partition {
+  	string partion_id = 1;
+  	string low_key = 2;
+  	string high_key = 3;
+  	repeated string parents = 4;
+  	repeated string children = 5;
+  	repeated Endpoint endpoints = 6;
+}
+
+message FindServerRequest {
+  string name = 1;
+  string key = 2;
 }
 
 

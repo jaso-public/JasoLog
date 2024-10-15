@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.LogRequest;
+import jaso.log.protocol.Partition;
 import jaso.log.protocol.Request;
 
 public class Client implements DiscoveryCallback {
@@ -18,7 +19,9 @@ public class Client implements DiscoveryCallback {
 	private final TreeMap<String, Destination> destinations = new TreeMap<>();
 	
 	private class Destination {
+		@SuppressWarnings("unused")
 		String loKey;
+		@SuppressWarnings("unused")
 		String hiKey;
 		StreamObserver<Request> requestObserver = null;
 		HashMap<String, Request> outstanding = new HashMap<>();
@@ -59,7 +62,7 @@ public class Client implements DiscoveryCallback {
 				    // to discover the Log server handing this range (or subrange)
 					
 					// TODO request the server
-					discoveryClient.discover(key);
+					discoveryClient.discover(key, this);
 					
 				}
 				return true;
@@ -74,7 +77,7 @@ public class Client implements DiscoveryCallback {
 	}
 
 	@Override
-	public void discovered() {
+	public void discovered(Partition partition) {
 		
 	}
 }
