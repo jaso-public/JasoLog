@@ -85,6 +85,11 @@ public class LogEntry {
 	}
 
 	@Override
+	public String toString() {
+		return "LogEntry [lsn=" + lsn + ", key=" + key + ", payload=" + payload + ", requestId=" + requestId + "]";
+	}
+
+	@Override
 	public int hashCode() {
 		return Objects.hash(key, lsn, payload, requestId);
 	}
