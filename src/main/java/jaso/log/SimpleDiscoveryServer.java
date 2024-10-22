@@ -3,6 +3,11 @@ package jaso.log;
 import java.io.IOException;
 import java.util.TreeMap;
 
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -13,6 +18,26 @@ import jaso.log.protocol.Partition;
 
 public class SimpleDiscoveryServer {
 
+	public static final String PROFILE_NAME = "JasoLog";
+	public static final String REGION_NAME = "us-east-2";
+	public static final String TABLE_NAME = "JasoLog";
+	
+	@SuppressWarnings("unused")
+	private final AmazonDynamoDB client;
+	
+	public SimpleDiscoveryServer() {
+		AWSCredentialsProvider credentialsProvider = new ProfileCredentialsProvider(PROFILE_NAME);
+        
+        // Create a DynamoDB client using the credentials
+        client = AmazonDynamoDBClientBuilder.standard()
+            .withCredentials(credentialsProvider)
+            .withRegion(REGION_NAME)
+		    .build();
+        
+	}
+          
+
+        
     public static void main(String[] args) throws IOException, InterruptedException {
         // Create and start the gRPC server
         Server server = ServerBuilder.forPort(8080)

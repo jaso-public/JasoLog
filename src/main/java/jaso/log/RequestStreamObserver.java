@@ -32,7 +32,7 @@ public class RequestStreamObserver implements StreamObserver<Request> {
     		return;
     	}
 
-    	LogEvent le = LogEvent.newBuilder().setKey("key").setValue("val").build();
+    	LogEvent le = CrcHelper.constructLogEvent(0, "key".getBytes(), "value".getBytes(), "rid".getBytes());
         
         // Respond to the client with a ChatResponse message
         Event response = Event.newBuilder().setLogEvent(le).build();
