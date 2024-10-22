@@ -2,6 +2,8 @@ package jaso.log.sim;
 
 import java.util.HashMap;
 
+import com.google.protobuf.ByteString;
+
 
 public class MdManager {
 	private LogEntryMetadata head = null;
@@ -9,16 +11,16 @@ public class MdManager {
 	private int count = 0;
 	private int maxEntries = 100;
 	
-	private HashMap<String, LSN> byRequestId = new HashMap<>();
-	private HashMap<String, LSN> byKey = new HashMap<>();
+	private HashMap<ByteString, LSN> byRequestId = new HashMap<>();
+	private HashMap<ByteString, LSN> byKey = new HashMap<>();
 	
 	static class LogEntryMetadata {
 		final LSN lsn;
-		final String requestId;
-		final String key;
+		final ByteString requestId;
+		final ByteString key;
 		LogEntryMetadata next = null;
 		
-		public LogEntryMetadata(LSN lsn, String requestId, String key) {
+		public LogEntryMetadata(LSN lsn, ByteString requestId, ByteString key) {
 			this.lsn = lsn;
 			this.requestId = requestId;
 			this.key = key;
@@ -30,13 +32,13 @@ public class MdManager {
 		return head.lsn.lsn;
 	}
 	
-	public Long getLastLsn(String key) {
+	public Long getLastLsn(ByteString key) {
 		LSN lsn = byKey.get(key);
 		if(lsn == null) return null;
 		return lsn.lsn;
 	}
 
-	public Long getLsnByRequestId(String requestId) {
+	public Long getLsnByRequestId(ByteString requestId) {
 		LSN lsn = byRequestId.get(requestId);
 		if(lsn == null) return null;
 		return lsn.lsn;
@@ -44,7 +46,7 @@ public class MdManager {
 
 
 	
-	public void add(LSN lsn, String requestId, String key) {
+	public void add(LSN lsn, ByteString requestId, ByteString key) {
 		while(count >= maxEntries) {
 			LogEntryMetadata old = head;
 			head = head.next;

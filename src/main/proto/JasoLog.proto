@@ -73,9 +73,9 @@ message Request {
 
 
 message LogRequest {
-    string key = 1;
-    string value = 2;
-    string requestId = 3;
+    bytes key = 1;
+    bytes value = 2;
+    bytes requestId = 3;
     optional int64 minLsn = 4;
 }
 
@@ -100,29 +100,32 @@ message Event {
 }
 
 message LogEvent {
-    string key = 1;
-    string value = 2;
-    int64 lsn = 3;
+    int64 lsn = 1;
+    bytes key = 2;
+    bytes value = 3;
+    bytes request_id = 4;
+    int32 kvr_checksum = 5;
+    int32 checksum = 6;
 }
 
 message Duplicate {
-    string requestId = 1;
+    bytes requestId = 1;
     int64 lsn = 2;
 }
 
 message TooLate {
-    string requestId = 1;
+    bytes requestId = 1;
     int64 minLsn = 2;
     int64 nextLsn = 3;
 }
 
 message Conflict {
-    string requestId = 1;
+    bytes requestId = 1;
     int64 existingLsn = 2;
 }
 
 message Accepted {
-    string requestId = 1;
+    bytes requestId = 1;
     int64 lsn = 2;
 }
 

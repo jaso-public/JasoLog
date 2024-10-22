@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.protobuf.ByteString;
+
 import jaso.log.protocol.Accepted;
 import jaso.log.protocol.Conflict;
 import jaso.log.protocol.Duplicate;
@@ -28,7 +30,7 @@ public class LogDataStore {
     	
     	// see if this is a duplicate request.
     	// if we know about the requestId then it must be a duplicate.
-		String rid = logRequest.getRequestId();
+		ByteString rid = logRequest.getRequestId();
 		Long duplicateLsn = mdm.getLsnByRequestId(rid);
 		if(duplicateLsn != null) {
 			// we have a duplicate request -- tell the client the LSN
@@ -56,14 +58,14 @@ public class LogDataStore {
     	
     	long lsn = nextLsn.getAndIncrement();
     	
-    	LogEntry entry = new LogEntry(lsn, rid, logRequest.getKey(), logRequest.getValue());
+    	LogEntry entry = new LogEntry(lsn, rid.toString(), logRequest.getKey().toString(), logRequest.getValue().toString());
     	log.put(lsn,  entry);
     	
     	mdm.add(new LSN(lsn), rid,  logRequest.getKey());
     	
     	// inform all subscribers.
     	for(RequestStreamObserver observer : observers) {
-            LogEvent event = LogEvent.newBuilder().setKey(logRequest.getKey()).setValue(logRequest.getValue()).setLsn(lsn).build();                
+    		LogEvent event = CrcHelper.constructLogEvent(lsn, logRequest.getKey(), logRequest.getValue(), logRequest.getRequestId());
             observer.send(Event.newBuilder().setLogEvent(event).build());
     	}
     	

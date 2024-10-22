@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import com.google.protobuf.ByteString;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
@@ -62,7 +64,7 @@ public class ClientServerTest {
         // Send a stream of messages to the server
         for (int i = 1; i <= 5; i++) {
         	
-            LogRequest lr = LogRequest.newBuilder().setKey("key").setValue("val").setMinLsn(123).build();
+            LogRequest lr = LogRequest.newBuilder().setKey(ByteString.copyFromUtf8("key")).setValue(ByteString.copyFromUtf8("val")).setMinLsn(123).build();
             
             // Respond to the client with a ChatResponse message
             Request request = Request.newBuilder().setLogRequest(lr).build();

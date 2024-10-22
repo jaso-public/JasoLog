@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import com.google.protobuf.ByteString;
+
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.Partition;
@@ -42,7 +44,7 @@ public class Client implements DiscoveryCallback {
 		Destination d = null;
 
 		String requestId = UUID.randomUUID().toString();
-        LogRequest lr = LogRequest.newBuilder().setKey("key").setValue("val").build();
+        LogRequest lr = LogRequest.newBuilder().setKey(ByteString.copyFromUtf8("key")).setValue(ByteString.copyFromUtf8("val")).build();
         Request request = Request.newBuilder().setLogRequest(lr).build();
 		
 		synchronized(this) {
