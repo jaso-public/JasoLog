@@ -80,6 +80,10 @@ public class CrcHelper {
 		if(computed != logEvent.getChecksum()) throw new RuntimeException("Checksum mismatch");
 	}
 	
+	public static LogEvent constructLogEvent(long lsn, String key, String payload, String requestId) {
+		return constructLogEvent(lsn, key.getBytes(StandardCharsets.UTF_8), payload.getBytes(StandardCharsets.UTF_8), requestId.getBytes(StandardCharsets.UTF_8));
+	}
+
 	public static LogEvent constructLogEvent(long lsn, byte[] key, byte[] payload, String requestId) {
 		return constructLogEvent(lsn, key, payload, requestId.getBytes(StandardCharsets.UTF_8));
 	}
@@ -89,7 +93,7 @@ public class CrcHelper {
 	}
 	
 	public static LogEvent constructLogEvent(long lsn, ByteString key, ByteString payload, ByteString requestId) {
-		int crcValue = CrcHelper.computeCrc32c(key, payload, requestId);
+		int crcValue = CrcHelper.computeCrc32c(key, payload);
 		int overallCrc = CrcHelper.computeOverallChecksum(lsn, crcValue, requestId);		
 		
 		return LogEvent.newBuilder()

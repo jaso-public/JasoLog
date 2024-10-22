@@ -6,8 +6,9 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import jaso.log.LogEntry;
+import jaso.log.CrcHelper;
 import jaso.log.persist.LogWriter;
+import jaso.log.protocol.LogEvent;
 
 public class LogWriterTest {
 
@@ -20,7 +21,7 @@ public class LogWriterTest {
 			String key = "key-"+lsn;
 			String payload = "payload-"+lsn;
 			String requestId = UUID.randomUUID().toString();
-			LogEntry le = new LogEntry(lsn, key, payload, requestId);
+			LogEvent le = CrcHelper.constructLogEvent(lsn, key, payload, requestId);
 			lw.append(le);
 		}
 		

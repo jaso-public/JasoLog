@@ -20,7 +20,7 @@ public class LogDataStore {
 
 	MdManager mdm = new MdManager();
 	AtomicLong nextLsn = new AtomicLong(1);
-	TreeMap<Long, LogEntry> log = new TreeMap<>();
+	TreeMap<Long, LogEvent> log = new TreeMap<>();
 	
 	HashSet<RequestStreamObserver> observers = new HashSet<>();
 	
@@ -57,16 +57,15 @@ public class LogDataStore {
     	}
     	
     	long lsn = nextLsn.getAndIncrement();
-    	
-    	LogEntry entry = new LogEntry(lsn, rid.toString(), logRequest.getKey().toString(), logRequest.getValue().toString());
-    	log.put(lsn,  entry);
+		LogEvent logEvent = CrcHelper.constructLogEvent(lsn, logRequest.getKey(), logRequest.getValue(), logRequest.getRequestId());
+
+    	log.put(lsn,  logEvent);
     	
     	mdm.add(new LSN(lsn), rid,  logRequest.getKey());
     	
     	// inform all subscribers.
     	for(RequestStreamObserver observer : observers) {
-    		LogEvent event = CrcHelper.constructLogEvent(lsn, logRequest.getKey(), logRequest.getValue(), logRequest.getRequestId());
-            observer.send(Event.newBuilder().setLogEvent(event).build());
+            observer.send(Event.newBuilder().setLogEvent(logEvent).build());
     	}
     	
 		Accepted event = Accepted.newBuilder().setRequestId(rid).setLsn(lsn).build();                

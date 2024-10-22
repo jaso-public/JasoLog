@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
@@ -15,13 +16,14 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 
-import jaso.log.LogEntry;
+import jaso.log.CrcHelper;
 import jaso.log.client.LogConstants;
+import jaso.log.protocol.LogEvent;
 
 public class LogReader {
 	
 	private InputStream inputStream = null;
-	private LogEntry nextLogEntry = null;
+	private LogEvent nextLogEvent = null;
 
 
 	public LogReader(String partitionId, long firstLsn) throws IOException {
@@ -61,24 +63,35 @@ public class LogReader {
 		inputStream = new BufferedInputStream(new FileInputStream(file));	
 		
 		while(true) {
-			nextLogEntry = readNext();
-			System.out.println(nextLogEntry);
-			if(nextLogEntry == null) return;
-			if(nextLogEntry.lsn == firstLsn) return;
+			nextLogEvent = readNext();
+			System.out.println(nextLogEvent);
+			if(nextLogEvent == null) return;
+			if(nextLogEvent.getLsn() == firstLsn) return;
 		}
 	}
 	
 	
-	public LogEntry next() throws IOException {
-		if(nextLogEntry == null) return null;	
-		LogEntry result = nextLogEntry;
-		nextLogEntry = readNext();
+	public LogEvent next() throws IOException {
+		if(nextLogEvent == null) return null;	
+		LogEvent result = nextLogEvent;
+		nextLogEvent = readNext();
 		return result;
 	}
 	
-	private LogEntry readNext() throws IOException {
+	private LogEvent readNext() throws IOException {
 		try {
-			return LogEntry.fromStream(inputStream);
+			byte[] lengthBytes = new byte[Integer.BYTES];
+			readFully(inputStream, lengthBytes);
+			ByteBuffer buffer = ByteBuffer.wrap(lengthBytes);
+			int length = buffer.getInt();
+			System.out.println("length:"+length);
+			byte[] bytes = new byte[length];
+			readFully(inputStream, bytes);
+			LogEvent le = LogEvent.parseFrom(bytes);
+			System.out.println(le);
+
+			CrcHelper.verifyChecksum(le);
+			return le;
 		} catch(EOFException eof) {
 			close();
 		} catch(IOException ioe) {
@@ -88,9 +101,30 @@ public class LogReader {
 		return null;
 	}
 	
+	
+	private static void readFully(InputStream is, byte[] buffer) throws IOException {
+		int length = buffer.length;
+		int offset = 0;
+		while(offset < length) {
+			int count = is.read(buffer, offset, length-offset);
+			if(count <= 0) throw new EOFException();
+			if(count == 0) {
+				// did not read anything, try again in a little while
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				continue;
+			}
+			offset += count;
+		}		
+	}
+
+	
 	public void close() throws IOException {
 		if(inputStream==null) return;
-		nextLogEntry = null;
+		nextLogEvent = null;
 		inputStream.close();
 		inputStream = null;
 	}

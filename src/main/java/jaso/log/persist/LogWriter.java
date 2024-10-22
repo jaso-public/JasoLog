@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -13,8 +14,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 
-import jaso.log.LogEntry;
 import jaso.log.client.LogConstants;
+import jaso.log.protocol.LogEvent;
 
 public class LogWriter {
 	
@@ -30,13 +31,20 @@ public class LogWriter {
 	}
 	
 
-	public void append(LogEntry logEntry) throws IOException {
-		if(logEntry.lsn < 1) throw new IllegalArgumentException("lsn("+logEntry.lsn+") invalid");
+	public void append(LogEvent logEvent) throws IOException {
+		long lsn = logEvent.getLsn();
+		if(lsn < 1) throw new IllegalArgumentException("lsn("+lsn+") invalid");
 		if(lastLsn > 0) {
-			if(lastLsn+1 != logEntry.lsn) throw new IllegalArgumentException("wrong lsn("+logEntry.lsn+") expected("+lastLsn+")");
+			if(lastLsn+1 != lsn) throw new IllegalArgumentException("wrong lsn("+lsn+") expected("+lastLsn+")");
 		}
-		lastLsn = logEntry.lsn;
-		outputStream.write(logEntry.toByteArray());		
+		lastLsn = lsn;
+		byte[] bytes = logEvent.toByteArray();
+		byte[] lengthBytes = new byte[4];
+		ByteBuffer buffer = ByteBuffer.wrap(lengthBytes);
+		buffer.putInt(bytes.length);
+		System.out.println("lengthBytes:"+bytes.length);
+		outputStream.write(lengthBytes);
+		outputStream.write(bytes);		
 	}
 	
 
