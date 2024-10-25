@@ -73,15 +73,16 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+    
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
       <version>4.4.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-	  <groupId>com.amazonaws</groupId>
-  	  <artifactId>aws-java-sdk-dynamodb</artifactId>
-	  <version>1.11.810</version>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>dynamodb</artifactId>
+      <version>2.28.27</version>
     </dependency>
     <dependency>
 	  <groupId>com.amazonaws</groupId>
@@ -93,6 +94,27 @@
         <groupId>javax.xml.bind</groupId>
         <artifactId>jaxb-api</artifactId>
         <version>2.3.1</version> <!-- Use the appropriate version here -->
+    </dependency>
+
+    <!-- SLF4J API -->
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>1.7.36</version>
+    </dependency>
+
+    <!-- Log4j2 Core -->
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-core</artifactId>
+        <version>2.20.0</version>
+    </dependency>
+
+    <!-- Log4j2 SLF4J Binding -->
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-slf4j-impl</artifactId>
+        <version>2.20.0</version>
     </dependency>
 
   </dependencies>

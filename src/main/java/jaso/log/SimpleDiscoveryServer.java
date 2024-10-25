@@ -3,10 +3,7 @@ package jaso.log;
 import java.io.IOException;
 import java.util.TreeMap;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.google.protobuf.ByteString;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -14,7 +11,7 @@ import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.Endpoint;
 import jaso.log.protocol.FindServerRequest;
 import jaso.log.protocol.LogDiscoveryServiceGrpc;
-import jaso.log.protocol.Partition;
+import jaso.log.protocol.LogPartition;
 
 public class SimpleDiscoveryServer {
 
@@ -22,18 +19,7 @@ public class SimpleDiscoveryServer {
 	public static final String REGION_NAME = "us-east-2";
 	public static final String TABLE_NAME = "JasoLog";
 	
-	@SuppressWarnings("unused")
-	private final AmazonDynamoDB client;
-	
 	public SimpleDiscoveryServer() {
-		AWSCredentialsProvider credentialsProvider = new ProfileCredentialsProvider(PROFILE_NAME);
-        
-        // Create a DynamoDB client using the credentials
-        client = AmazonDynamoDBClientBuilder.standard()
-            .withCredentials(credentialsProvider)
-            .withRegion(REGION_NAME)
-		    .build();
-        
 	}
           
 
@@ -53,12 +39,12 @@ public class SimpleDiscoveryServer {
     // Implementation of the service
     static class LogDiscoveryServiceImpl extends LogDiscoveryServiceGrpc.LogDiscoveryServiceImplBase {
     	
-    	TreeMap<String,Partition> partitions = new TreeMap<>();
+    	TreeMap<String,LogPartition> LogPartitions = new TreeMap<>();
     	
     	
 
         @Override
-        public void find(FindServerRequest request, StreamObserver<Partition> responseObserver) {
+        public void find(FindServerRequest request, StreamObserver<LogPartition> responseObserver) {
             // Simulate finding servers based on the request
 
             // Create some mock endpoints
@@ -73,11 +59,9 @@ public class SimpleDiscoveryServer {
                     .build();
 
             // Build the response
-            Partition response = Partition.newBuilder()
-                    .setLowKey("low-key-value")
-                    .setHighKey("high-key-value")
-                    .addEndpoints(endpoint1)
-                    .addEndpoints(endpoint2)
+            LogPartition response = LogPartition.newBuilder()
+                    .setLowKey(ByteString.copyFrom("low-key-value".getBytes()))
+                    .setHighKey(ByteString.copyFrom("high-key-value".getBytes()))
                     .build();
 
             // Send the response

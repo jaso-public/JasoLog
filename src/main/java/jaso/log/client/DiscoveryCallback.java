@@ -1,9 +1,9 @@
 package jaso.log.client;
 
-import jaso.log.protocol.Partition;
+import jaso.log.protocol.LogPartition;
 
 public interface DiscoveryCallback {
 	
-	void discovered(Partition partition);
+	void discovered(LogPartition partition);
 
 }

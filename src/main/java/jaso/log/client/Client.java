@@ -8,8 +8,8 @@ import java.util.UUID;
 import com.google.protobuf.ByteString;
 
 import io.grpc.stub.StreamObserver;
+import jaso.log.protocol.LogPartition;
 import jaso.log.protocol.LogRequest;
-import jaso.log.protocol.Partition;
 import jaso.log.protocol.Request;
 
 public class Client implements DiscoveryCallback {
@@ -79,7 +79,7 @@ public class Client implements DiscoveryCallback {
 	}
 
 	@Override
-	public void discovered(Partition partition) {
+	public void discovered(LogPartition partition) {
 		
 	}
 }
