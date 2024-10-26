@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -25,20 +24,34 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.BillingMode;
+import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
+import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
+import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.Projection;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
+import software.amazon.awssdk.services.dynamodb.model.TableStatus;
+import software.amazon.awssdk.services.dynamodb.model.TimeToLiveSpecification;
+import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveRequest;
 
 
 public class DdbDataStore {
 	
 	private static Logger log = LogManager.getLogger(DdbDataStore.class);
 	
-	public static final String PROFILE_NAME = "JasoLog";
-	public static final String REGION_NAME = "us-east-2";
+	public static final String PROFILE_NAME           = "JasoLog";
+	public static final String REGION_NAME            = "us-east-2";
 	
 	public static final String TABLE_PARTITION        = "jaso-log";
 	public static final String INDEX_PARTITION_SEARCH = "log-id-search-key-index";
@@ -57,7 +70,9 @@ public class DdbDataStore {
 	public static final String TABLE_END_POINT        = "jaso-log-endpoints";
 	public static final String INDEX_END_POINT_SEARCH = "partition-id-last-update-index";
 	
-	public static final String ATTRIBUTE_END_POINT    = "endpoint";
+	public static final String ATTRIBUTE_SERVER_ID    = "server-id";
+	public static final String ATTRIBUTE_HOST_NAME    = "host-name";
+	public static final String ATTRIBUTE_HOST_PORT    = "host-port";
 	public static final String ATTRIBUTE_LEADER_HINT  = "leader-hint";
 	public static final String ATTRIBUTE_LAST_UPDATE  = "last-update";
 	public static final int    TIME_TO_LIVE_SECONDS	  = 3600; // 1 hour
@@ -77,6 +92,109 @@ public class DdbDataStore {
             .region(Region.of(REGION_NAME))
             .build();
 	}
+	
+	public void waitUntilActive(String tableName) {
+		while(true) {
+			DescribeTableRequest request = DescribeTableRequest.builder()
+					.tableName(tableName)
+					.build();
+			
+			try {
+				DescribeTableResponse response = client.describeTable(request);			
+				TableStatus status = response.table().tableStatus();
+				log.info("table name:"+tableName+" status:"+status);
+				if(status == TableStatus.ACTIVE) return;
+			} catch(Throwable t) {
+				log.warn("error getting status", t);
+			}
+			
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				log.error("InterruptedException while waiting for ddb", e);
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void voo() {
+		String tableName = TABLE_END_POINT;
+				
+		
+		// define the attribute types
+		ArrayList<AttributeDefinition> definitions = new ArrayList<>();
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_SERVER_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_LAST_UPDATE)
+				.attributeType(ScalarAttributeType.N)
+				.build());
+
+		
+		// define the table schema (hash/sort keys)
+		ArrayList<KeySchemaElement> tableSchema = new ArrayList<>();
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_SERVER_ID)
+				.keyType(KeyType.RANGE)
+				.build());
+		
+		
+		// define the gsi schema (hash/sort keys)
+		ArrayList<KeySchemaElement> gsiSchema1 = new ArrayList<>();
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_LAST_UPDATE)
+				.keyType(KeyType.RANGE)
+				.build());
+		
+		
+		Projection projection = Projection.builder()
+				.projectionType(ProjectionType.ALL)
+				.build();
+		
+		ArrayList<GlobalSecondaryIndex> gsiRequests = new ArrayList<>();
+		gsiRequests.add(GlobalSecondaryIndex.builder()
+				.keySchema(gsiSchema1)
+				.indexName(INDEX_END_POINT_SEARCH)
+				.projection(projection)
+				.build());
+		
+		CreateTableRequest request = CreateTableRequest.builder()
+				.tableName(tableName)
+				.keySchema(tableSchema)
+				.attributeDefinitions(definitions)
+				.billingMode(BillingMode.PAY_PER_REQUEST)
+				.globalSecondaryIndexes(gsiRequests)
+				.build();
+		
+		client.createTable(request);
+		waitUntilActive(tableName);
+		
+		TimeToLiveSpecification ttlSpec = TimeToLiveSpecification.builder()
+				.attributeName(ATTRIBUTE_LAST_UPDATE)
+				.enabled(true)
+				.build();
+		
+		UpdateTimeToLiveRequest ttlRequest = UpdateTimeToLiveRequest.builder()
+				.tableName(tableName)
+				.timeToLiveSpecification(ttlSpec)
+				.build();
+		
+		client.updateTimeToLive(ttlRequest);
+	}
 		
 	
 	
@@ -90,13 +208,30 @@ public class DdbDataStore {
 		return av.s();
 	}
 
-	public static void addLong(Map<String, AttributeValue> item, String key, Long value) {
+	
+	
+	public static void addNumber(Map<String, AttributeValue> item, String key, long value) {
 		item.put(key, AttributeValue.builder().n(String.valueOf(value)).build()); 
 	}
 	
+	public static Long getNumber(Map<String, AttributeValue> item, String key) {
+		AttributeValue av = item.get(key);
+		if(av == null) return null;
+		String s = av.n();
+		return Long.parseLong(s);
+	}
+	
+
 	public static void addBoolean(Map<String, AttributeValue> item, String key, boolean value) {
 		item.put(key, AttributeValue.builder().bool(value).build());  
 	}
+	
+	public static Boolean getBoolean(Map<String, AttributeValue> item, String key) {
+		AttributeValue av = item.get(key);
+		if(av == null) return null;
+		return av.bool();
+	}
+
 	
 	public static void addByteArray(Map<String, AttributeValue> item, String key, byte[] value) {
 		 item.put(key, AttributeValue.builder().b(SdkBytes.fromByteArray(value)).build());  
@@ -258,7 +393,7 @@ public class DdbDataStore {
         // Define the key values you want to search by in the secondary index
         Map<String, AttributeValue> values = new HashMap<>();
         addString(values, ":partitionId", partitionId);
-        addLong(values, ":lastUpdate", Long.MAX_VALUE);
+        addNumber(values, ":lastUpdate", Long.MAX_VALUE);
   
          // Create the QueryRequest for the secondary index
         QueryRequest queryRequest = QueryRequest.builder()
@@ -280,30 +415,30 @@ public class DdbDataStore {
         	Map<String, AttributeValue> item = queryResponse.items().get(i);
         	String pid = getString(item, ATTRIBUTE_PARTITION_ID);
         	if(! partitionId.equals(pid)) break;
-        	String ep = getString(item, ATTRIBUTE_END_POINT);
-        	if(ep == null) continue;
-        	String[] parts = ep.split(":");
-        	if(parts.length != 2) continue;
-        	int port = Integer.parseInt(parts[1]);
-            EndPoint.Builder builder = EndPoint.newBuilder();
-            builder.setHostAddress(parts[0]);
-            builder.setHostPort(port);
-            result.add(builder.build());
+
+        	result.add(EndPoint.newBuilder()
+        			.setServerId(getString(item, ATTRIBUTE_SERVER_ID))
+        			.setHostAddress(getString(item, ATTRIBUTE_HOST_NAME))
+        			.setHostPort(getNumber(item, ATTRIBUTE_HOST_PORT).intValue())
+        			.setLeaderHint(getBoolean(item, ATTRIBUTE_LEADER_HINT))
+        			.build());
         }
         
         return result;
   	}
   	
-	public void storeEndpoint(String partitionId, String endPoint, boolean leader) {
+	public void storeEndpoint(String partitionId, EndPoint endPoint) {
         Map<String, AttributeValue> item = new HashMap<>();
         addString(item, ATTRIBUTE_PARTITION_ID, partitionId);
-        addString(item, ATTRIBUTE_END_POINT, endPoint);
-        addLong(item, ATTRIBUTE_LAST_UPDATE, System.currentTimeMillis()/1000 + TIME_TO_LIVE_SECONDS);
-        addBoolean(item, ATTRIBUTE_LEADER_HINT, leader);
+        addString(item, ATTRIBUTE_SERVER_ID, endPoint.getServerId());
+        addString(item, ATTRIBUTE_HOST_NAME, endPoint.getHostAddress());
+        addNumber(item, ATTRIBUTE_HOST_PORT, endPoint.getHostPort());
+        addBoolean(item, ATTRIBUTE_LEADER_HINT, endPoint.getLeaderHint());
+        addNumber(item, ATTRIBUTE_LAST_UPDATE, System.currentTimeMillis()/1000 + TIME_TO_LIVE_SECONDS);
         
         PutItemRequest putItemRequest = PutItemRequest.builder().tableName(TABLE_END_POINT).item(item).build();
         client.putItem(putItemRequest);
-        log.info("Stored end point:" + endPoint);
+        log.info("Store EndPoint -- partitionId:"+partitionId+" endPoint:" + endPoint);
 	}
 
 
@@ -313,15 +448,27 @@ public class DdbDataStore {
 		Configurator.setRootLevel(Level.INFO);
 
 		DdbDataStore ddbStore = new DdbDataStore();
-		String logId = "log-"+UUID.randomUUID().toString();
-		LogPartition p = ddbStore.createNewLogPartition(logId, "part-"+UUID.randomUUID().toString(), System.currentTimeMillis(), emptyByteArray, emptyByteArray, null);
-		ddbStore.storePartition(p);
 		
-		LogPartition lu = ddbStore.findPartition(logId, "bob".getBytes());
+		for(int i=0; i<12; i++) {
+		EndPoint ep = EndPoint.newBuilder()
+    			.setServerId("serverId-"+i)
+    			.setHostAddress("host name")
+    			.setHostPort(1234)
+    			.setLeaderHint(true)
+    			.build();
 		
-		ddbStore.storeEndpoint(lu.getPartitionId(), "10.1.1.4:12345", true);
+			ddbStore.storeEndpoint("partId", ep);
+		}
 		
-		System.out.println(lu);
+		
+		Collection<EndPoint> eps = ddbStore.findEndPoints("partId", 3);
+		for(EndPoint e : eps) System.out.println(e);
+		
+		
+		
+		
+		
+//		ddbStore.voo();
     }
 
 }

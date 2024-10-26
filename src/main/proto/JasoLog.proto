@@ -36,9 +36,10 @@ message FindPartitionRequest {
 }
 
 message EndPoint {
-	string host_address = 1;
-	int32 host_port = 2;
-	bool leader_hint = 3;
+	string server_id = 1;
+	string host_address = 2;
+	int32 host_port = 3;
+	bool leader_hint = 4;
 }
 
 message LogPartition {
