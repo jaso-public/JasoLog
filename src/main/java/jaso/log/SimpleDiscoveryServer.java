@@ -8,8 +8,8 @@ import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
-import jaso.log.protocol.Endpoint;
-import jaso.log.protocol.FindServerRequest;
+import jaso.log.protocol.EndPoint;
+import jaso.log.protocol.FindPartitionRequest;
 import jaso.log.protocol.LogDiscoveryServiceGrpc;
 import jaso.log.protocol.LogPartition;
 
@@ -44,16 +44,18 @@ public class SimpleDiscoveryServer {
     	
 
         @Override
-        public void find(FindServerRequest request, StreamObserver<LogPartition> responseObserver) {
+        public void find(FindPartitionRequest request, StreamObserver<LogPartition> responseObserver) {
             // Simulate finding servers based on the request
 
             // Create some mock endpoints
-            Endpoint endpoint1 = Endpoint.newBuilder()
+        	@SuppressWarnings("unused")
+			EndPoint endpoint1 = EndPoint.newBuilder()
                     .setHostAddress("192.168.1.1")
                     .setHostPort(8080)
                     .build();
 
-            Endpoint endpoint2 = Endpoint.newBuilder()
+        	@SuppressWarnings("unused")
+			EndPoint endpoint2 = EndPoint.newBuilder()
                     .setHostAddress("192.168.1.2")
                     .setHostPort(9090)
                     .build();

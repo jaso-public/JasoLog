@@ -26,14 +26,19 @@ package JasoLog;
     point for learning about the structure of the log.  
 */
 service LogDiscoveryService {
-    rpc find(FindServerRequest) returns (LogPartition) {}
+    rpc find(FindPartitionRequest) returns (LogPartition) {}
     rpc update(LogPartition) returns (LogPartition) {}
 }
 
+message FindPartitionRequest {
+  string logId = 1;
+  bytes key = 2;
+}
 
-message Endpoint {
+message EndPoint {
 	string host_address = 1;
 	int32 host_port = 2;
+	bool leader_hint = 3;
 }
 
 message LogPartition {
@@ -48,10 +53,6 @@ message LogPartition {
   	optional string sealed = 8;
  }
 
-message FindServerRequest {
-  string name = 1;
-  string key = 2;
-}
 
 
 
