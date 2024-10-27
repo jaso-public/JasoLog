@@ -50,11 +50,24 @@ public class DdbDataStore {
 	
 	private static Logger log = LogManager.getLogger(DdbDataStore.class);
 	
-	public static final String PROFILE_NAME           = "JasoLog";
+	public static final String PROFILE_NAME           = "jaso-log-profile";
 	public static final String REGION_NAME            = "us-east-2";
 	
-	public static final String TABLE_PARTITION        = "jaso-log";
+	// this table maps human readable names to the uuid of the log
+	public static final String TABLE_LOG_NAME         = "jaso-log-names";
+	public static final String INDEX_LOG_NAME_SEARCH  = "log-id-name-index";
+	
+	// this table stores the info about each partition 
+	// the records stored are serialized LogPartition objects from the protobuf
+	public static final String TABLE_PARTITION        = "jaso-log-partitions";
 	public static final String INDEX_PARTITION_SEARCH = "log-id-search-key-index";
+	
+	// this table stores info about the end points where servers are listening
+	// the records stored are serialized EnpPoint objects from the protobuf
+	public static final String TABLE_END_POINT        = "jaso-log-end-points";
+	public static final String INDEX_END_POINT_SEARCH = "partition-id-last-update-index";
+	
+	public static final String ATTRIBUTE_LOG_NAME     = "log-name";
 	
 	public static final String ATTRIBUTE_LOG_ID       = "log-id";
 	public static final String ATTRIBUTE_PARTITION_ID = "partition-id";
@@ -62,13 +75,11 @@ public class DdbDataStore {
 	public static final String ATTRIBUTE_LOW_KEY      = "low-key";
 	public static final String ATTRIBUTE_HIGH_KEY     = "high-key";
 	public static final String ATTRIBUTE_PARENTS      = "parents";
-	public static final String ATTRIBUTE_CHILDREN     = "chilldren";
+	public static final String ATTRIBUTE_CHILDREN     = "children";
 	public static final String ATTRIBUTE_SEALED       = "sealed";
 	public static final String ATTRIBUTE_SEARCH_KEY   = "search-key";
 
     
-	public static final String TABLE_END_POINT        = "jaso-log-endpoints";
-	public static final String INDEX_END_POINT_SEARCH = "partition-id-last-update-index";
 	
 	public static final String ATTRIBUTE_SERVER_ID    = "server-id";
 	public static final String ATTRIBUTE_HOST_NAME    = "host-name";
@@ -117,7 +128,133 @@ public class DdbDataStore {
 		}
 	}
 	
-	public void voo() {
+	public void createLogNameTable() {
+		String tableName = TABLE_LOG_NAME;
+				
+		
+		// define the attribute types
+		ArrayList<AttributeDefinition> definitions = new ArrayList<>();
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_LOG_NAME)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_LOG_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+
+		
+		// define the table schema (hash/sort keys)
+		ArrayList<KeySchemaElement> tableSchema = new ArrayList<>();
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_LOG_NAME)
+				.keyType(KeyType.HASH)
+				.build());				
+		
+		
+		// define the gsi schema (hash/sort keys)
+		ArrayList<KeySchemaElement> gsiSchema1 = new ArrayList<>();
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_LOG_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_LOG_NAME)
+				.keyType(KeyType.RANGE)
+				.build());
+		
+		
+		Projection projection = Projection.builder()
+				.projectionType(ProjectionType.ALL)
+				.build();
+		
+		ArrayList<GlobalSecondaryIndex> gsiRequests = new ArrayList<>();
+		gsiRequests.add(GlobalSecondaryIndex.builder()
+				.keySchema(gsiSchema1)
+				.indexName(INDEX_LOG_NAME_SEARCH)
+				.projection(projection)
+				.build());
+		
+		CreateTableRequest request = CreateTableRequest.builder()
+				.tableName(tableName)
+				.keySchema(tableSchema)
+				.attributeDefinitions(definitions)
+				.billingMode(BillingMode.PAY_PER_REQUEST)
+				.globalSecondaryIndexes(gsiRequests)
+				.build();
+		
+		client.createTable(request);
+		waitUntilActive(tableName);
+		
+	}
+		
+
+	
+	public void createPartitionTable() {
+		String tableName = TABLE_PARTITION;
+				
+		
+		// define the attribute types
+		ArrayList<AttributeDefinition> definitions = new ArrayList<>();
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_LOG_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_SEARCH_KEY)
+				.attributeType(ScalarAttributeType.B)
+				.build());
+
+		
+		// define the table schema (hash/sort keys)
+		ArrayList<KeySchemaElement> tableSchema = new ArrayList<>();
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.keyType(KeyType.HASH)
+				.build());				
+		
+		// define the gsi schema (hash/sort keys)
+		ArrayList<KeySchemaElement> gsiSchema1 = new ArrayList<>();
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_LOG_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		gsiSchema1.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_SEARCH_KEY)
+				.keyType(KeyType.RANGE)
+				.build());
+		
+		
+		Projection projection = Projection.builder()
+				.projectionType(ProjectionType.ALL)
+				.build();
+		
+		ArrayList<GlobalSecondaryIndex> gsiRequests = new ArrayList<>();
+		gsiRequests.add(GlobalSecondaryIndex.builder()
+				.keySchema(gsiSchema1)
+				.indexName(INDEX_PARTITION_SEARCH)
+				.projection(projection)
+				.build());
+		
+		CreateTableRequest request = CreateTableRequest.builder()
+				.tableName(tableName)
+				.keySchema(tableSchema)
+				.attributeDefinitions(definitions)
+				.billingMode(BillingMode.PAY_PER_REQUEST)
+				.globalSecondaryIndexes(gsiRequests)
+				.build();
+		
+		client.createTable(request);
+		waitUntilActive(tableName);
+		
+	}
+		
+
+	public void createEndPointTable() {
 		String tableName = TABLE_END_POINT;
 				
 		
@@ -196,6 +333,7 @@ public class DdbDataStore {
 		client.updateTimeToLive(ttlRequest);
 	}
 		
+
 	
 	
 	public static void addString(Map<String, AttributeValue> item, String key, String value) {
@@ -427,9 +565,9 @@ public class DdbDataStore {
         return result;
   	}
   	
-	public void storeEndpoint(String partitionId, EndPoint endPoint) {
+	public void storeEndpoint(EndPoint endPoint) {
         Map<String, AttributeValue> item = new HashMap<>();
-        addString(item, ATTRIBUTE_PARTITION_ID, partitionId);
+        addString(item, ATTRIBUTE_PARTITION_ID, endPoint.getPartitionId());
         addString(item, ATTRIBUTE_SERVER_ID, endPoint.getServerId());
         addString(item, ATTRIBUTE_HOST_NAME, endPoint.getHostAddress());
         addNumber(item, ATTRIBUTE_HOST_PORT, endPoint.getHostPort());
@@ -438,7 +576,7 @@ public class DdbDataStore {
         
         PutItemRequest putItemRequest = PutItemRequest.builder().tableName(TABLE_END_POINT).item(item).build();
         client.putItem(putItemRequest);
-        log.info("Store EndPoint -- partitionId:"+partitionId+" endPoint:" + endPoint);
+        log.info("Store EndPoint:" + endPoint);
 	}
 
 
@@ -448,26 +586,31 @@ public class DdbDataStore {
 		Configurator.setRootLevel(Level.INFO);
 
 		DdbDataStore ddbStore = new DdbDataStore();
+		ddbStore.createLogNameTable();
+		ddbStore.createPartitionTable();
+		ddbStore.createEndPointTable();
+		
+		/*
+		
+		String pid = "partitionId";
 		
 		for(int i=0; i<12; i++) {
 		EndPoint ep = EndPoint.newBuilder()
+				.setPartitionId(pid)
     			.setServerId("serverId-"+i)
     			.setHostAddress("host name")
     			.setHostPort(1234)
     			.setLeaderHint(true)
     			.build();
 		
-			ddbStore.storeEndpoint("partId", ep);
+			ddbStore.storeEndpoint(ep);
 		}
 		
 		
-		Collection<EndPoint> eps = ddbStore.findEndPoints("partId", 3);
+		Collection<EndPoint> eps = ddbStore.findEndPoints(pid, 3);
 		for(EndPoint e : eps) System.out.println(e);
 		
-		
-		
-		
-		
+		*/
 //		ddbStore.voo();
     }
 
