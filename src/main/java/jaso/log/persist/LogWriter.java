@@ -14,7 +14,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 
-import jaso.log.client.LogConstants;
+import jaso.log.LogConstants;
 import jaso.log.protocol.LogEvent;
 
 public class LogWriter {

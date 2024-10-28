@@ -17,7 +17,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 
 import jaso.log.CrcHelper;
-import jaso.log.client.LogConstants;
+import jaso.log.LogConstants;
 import jaso.log.protocol.LogEvent;
 
 public class LogReader {

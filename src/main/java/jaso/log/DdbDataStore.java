@@ -482,10 +482,9 @@ public class DdbDataStore {
         return fromItem(item);        
   	}
   	
-  	public LogPartition getPartition(String logId, String partitionId) {
+  	public LogPartition getPartition(String partitionId) {
         // Define the primary key for the item you want to retrieve
         Map<String, AttributeValue> keyToGet = new HashMap<>();
-        addString(keyToGet, ATTRIBUTE_LOG_ID, logId);
         addString(keyToGet, ATTRIBUTE_PARTITION_ID, partitionId);
  
         // Create the GetItemRequest
