@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
@@ -75,6 +76,24 @@ public class ServerId {
 		return "ServerId [id=" + id + "]";
 	}
 
-	// maybe equals and hash ???
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(id);
+	}
+
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		ServerId other = (ServerId) obj;
+		return Objects.equals(id, other.id);
+	}
+
 
 }

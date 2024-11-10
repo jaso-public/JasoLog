@@ -1,6 +1,8 @@
 package jaso.log;
 
 
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -53,6 +55,9 @@ public class DdbDataStore {
 	public static final String PROFILE_NAME           = "jaso-log-profile";
 	public static final String REGION_NAME            = "us-east-2";
 	
+	// this table maps server id to the endpoint where it is listening
+	public static final String TABLE_SERVER           = "jaso-log-servers";
+
 	// this table maps human readable names to the uuid of the log
 	public static final String TABLE_LOG_NAME         = "jaso-log-names";
 	public static final String INDEX_LOG_NAME_SEARCH  = "log-id-name-index";
@@ -83,6 +88,7 @@ public class DdbDataStore {
 	
 	public static final String ATTRIBUTE_SERVER_ID    = "server-id";
 	public static final String ATTRIBUTE_HOST_NAME    = "host-name";
+	public static final String ATTRIBUTE_HOST_ADDRESS = "host-address";
 	public static final String ATTRIBUTE_HOST_PORT    = "host-port";
 	public static final String ATTRIBUTE_LEADER_HINT  = "leader-hint";
 	public static final String ATTRIBUTE_LAST_UPDATE  = "last-update";
@@ -333,7 +339,50 @@ public class DdbDataStore {
 		client.updateTimeToLive(ttlRequest);
 	}
 		
+	
+	public void createServerTable() {
+		String tableName = TABLE_SERVER;
+				
+		
+		// define the attribute types
+		ArrayList<AttributeDefinition> definitions = new ArrayList<>();
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_SERVER_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
 
+		
+		// define the table schema (hash/sort keys)
+		ArrayList<KeySchemaElement> tableSchema = new ArrayList<>();
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_SERVER_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		
+		
+		CreateTableRequest request = CreateTableRequest.builder()
+				.tableName(tableName)
+				.keySchema(tableSchema)
+				.attributeDefinitions(definitions)
+				.billingMode(BillingMode.PAY_PER_REQUEST)
+				.build();
+		
+		client.createTable(request);
+		waitUntilActive(tableName);
+		
+		TimeToLiveSpecification ttlSpec = TimeToLiveSpecification.builder()
+				.attributeName(ATTRIBUTE_LAST_UPDATE)
+				.enabled(true)
+				.build();
+		
+		UpdateTimeToLiveRequest ttlRequest = UpdateTimeToLiveRequest.builder()
+				.tableName(tableName)
+				.timeToLiveSpecification(ttlSpec)
+				.build();
+		
+		client.updateTimeToLive(ttlRequest);
+	}
+	
 	
 	
 	public static void addString(Map<String, AttributeValue> item, String key, String value) {
@@ -411,7 +460,44 @@ public class DdbDataStore {
 	}
 
 	
-    
+	public void registerServer(String serverId, String ipAddress, int port) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        addString(item, ATTRIBUTE_SERVER_ID, serverId);
+        addString(item, ATTRIBUTE_HOST_ADDRESS, ipAddress);
+        addNumber(item, ATTRIBUTE_HOST_PORT, port);
+        
+        PutItemRequest putItemRequest = PutItemRequest.builder().tableName(TABLE_SERVER).item(item).build();
+        client.putItem(putItemRequest);
+        log.info("Stored serverId:" + serverId + " ipAddress:" + ipAddress + " servporterId:" + port);
+	}
+	
+	public String getServerAddress(String serverId) {
+		
+        Map<String, AttributeValue> keyToGet = new HashMap<>();
+        addString(keyToGet, ATTRIBUTE_SERVER_ID, serverId);
+  
+        // Create the GetItemRequest
+        GetItemRequest request = GetItemRequest.builder()
+                .tableName(TABLE_SERVER)  
+                .key(keyToGet)
+                .build();
+
+        // Execute the GetItem request
+        GetItemResponse response = client.getItem(request);
+        if (!response.hasItem()) {
+        	log.warn("unable to find server:"+serverId+" in table:"+TABLE_SERVER);
+        	return null;
+        }
+        
+        String ipAddress = getString(response.item(), ATTRIBUTE_HOST_ADDRESS);
+        int port = getNumber(response.item(), ATTRIBUTE_HOST_PORT).intValue();
+        log.info("Retrieved serverId:" + serverId + " ipAddress:" + ipAddress + " port:" + port);
+        
+        return ipAddress+":"+port;
+	}
+
+
+
 	public void storePartition(LogPartition p) {
         Map<String, AttributeValue> item = new HashMap<>();
         addString(item, ATTRIBUTE_LOG_ID, p.getLogId());
@@ -585,9 +671,10 @@ public class DdbDataStore {
 		Configurator.setRootLevel(Level.INFO);
 
 		DdbDataStore ddbStore = new DdbDataStore();
-		ddbStore.createLogNameTable();
-		ddbStore.createPartitionTable();
-		ddbStore.createEndPointTable();
+		ddbStore.createServerTable();
+//		ddbStore.createLogNameTable();
+//		ddbStore.createPartitionTable();
+//		ddbStore.createEndPointTable();
 		
 		/*
 		

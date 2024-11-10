@@ -8,6 +8,84 @@ option objc_class_prefix = "JL";
 
 package JasoLog;
 
+/* stuff for a raft prototype only */
+
+message State {
+    int64 current_term = 1;
+    string voted_for = 2;
+}
+
+message Message {
+    oneof message_type {
+    	HelloRequest hello_request = 10;
+    	HelloResult hello_result = 11;
+        AppendRequest append_request = 1;
+        AppendResult append_reply = 2;
+        VoteRequest vote_request = 3;
+        VoteResult vote_result = 4;
+        CallForElectionRequest call_for_election_request = 5;
+        CallForElectionReply call_for_election_result = 6;
+     }
+}
+
+message HelloRequest {
+	string serverId = 1;
+}
+
+message HelloResult {
+	string serverId = 1;
+}
+
+
+message AppendRequest {
+    int64 term = 1;
+    string leader = 2;
+    int64 previous_log_id = 3;
+    int64 previous_term = 4;
+    repeated string entries = 5;
+    int64 leader_commit = 6;
+	string payload = 7;
+}	
+
+message AppendResult {
+    int64 term = 1;
+    bool success = 2;
+}
+
+message VoteRequest {
+    int64 term = 1;
+    string candidate_id = 2;
+    int64 last_log_index = 3;
+    int64 last_log_term = 4;
+}
+
+message VoteResult {
+    int64 term = 1;
+    bool vote_granted = 2;
+} 
+
+message CallForElectionRequest {
+}
+
+message CallForElectionReply {
+	bool call_for_election = 1;
+}
+      
+service RaftService {
+    rpc onMessage(stream Message) returns (stream Message) {}
+}
+
+
+    
+message SetPeersRequest {
+	repeated EndPoint end_points = 1;
+}
+
+message SetPeersResult {
+	bool success = 1;
+}
+
+
 /*
     Log Registry Service
     Maps a names log to discovery service.
@@ -65,7 +143,6 @@ message LogPartition {
     stream of log events from the log servers.
 */
 service LogService {
-    rpc Send(stream Request) returns (stream Event) {}
 }
 
 
