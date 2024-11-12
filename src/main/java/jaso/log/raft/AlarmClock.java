@@ -170,6 +170,7 @@ public class AlarmClock implements Runnable {
 					Long id = (Long)obj;
 					doCancel(id.longValue());
 				} else if(obj instanceof Stop) {
+					log.info("AlarmClock dequeued a Stop request");
 					return;
 				} else {
 					log.warn("unexpected obj:"+obj.getClass().getCanonicalName());

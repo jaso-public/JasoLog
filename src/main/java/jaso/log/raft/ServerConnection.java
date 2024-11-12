@@ -13,6 +13,8 @@ public class ServerConnection implements StreamObserver<Message> {
 	private static Logger log = LogManager.getLogger(ServerConnection.class);
 
 	private final RaftServerContext context;
+	private final RaftServerState state;
+	
 	private final StreamObserver<Message> observer;
 	private final String clientAddress;
 
@@ -20,8 +22,9 @@ public class ServerConnection implements StreamObserver<Message> {
 	private String peerServerId = null;
 
 	
-	public ServerConnection(RaftServerContext context, StreamObserver<Message> observer, String clientAddress) {
+	public ServerConnection(RaftServerContext context,RaftServerState state, StreamObserver<Message> observer, String clientAddress) {
 		this.context = context;
+		this.state = state;
 		this.observer = observer;
 		this.clientAddress = clientAddress;
 	}	
@@ -70,10 +73,6 @@ public class ServerConnection implements StreamObserver<Message> {
         case APPEND_REPLY:
 			break;
 		case APPEND_REQUEST:
-			break;
-		case CALL_FOR_ELECTION_REQUEST:
-			break;
-		case CALL_FOR_ELECTION_RESULT:
 			break;
 		case VOTE_REQUEST:
 			break;

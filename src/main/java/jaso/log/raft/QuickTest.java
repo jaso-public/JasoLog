@@ -23,16 +23,19 @@ public class QuickTest {
 			
 		DdbDataStore ddbStore = new DdbDataStore();
 		
-		RaftServerContext context1 = makeContext(new File("/Users/jaso/jaso-log/server-1"), ddbStore);
-		RaftServer raftServer1 = new RaftServer(context1);
-		
-		PeerConnection pc1 = new PeerConnection(context1, "server-2");
+		RaftServerContext[] contexts = new RaftServerContext[6];
+		RaftServer[] servers = new RaftServer[6];
 	
-				
-		RaftServerContext context2 = makeContext(new File("/Users/jaso/jaso-log/server-2"), ddbStore);
-		RaftServer raftServer2 = new RaftServer(context2);
-		
+		for(int i=0 ; i<contexts.length ; i++) {
+			File root = new File("/Users/jaso/jaso-log/server-"+i);
+			root.mkdir();
+			File parts = new File(root, "partitions");
+			parts.mkdir();
+			//ServerId.create(root);
 
+			contexts[i] = makeContext(root, ddbStore);
+			servers[i] = new RaftServer(contexts[i]);
+		}
 		//PeerConnection pc2 = new PeerConnection(context2, "server-1");
 		//raftServer2.doConnect("server-1");
 		

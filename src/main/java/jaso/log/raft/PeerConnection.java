@@ -24,8 +24,7 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	private final String peerServerId;
 	private long connectAlarmId = -1;
 	private boolean connectedAndVerified = false;
-
-
+	
 	
 	
 	public PeerConnection(RaftServerContext context, String peerServerId) {

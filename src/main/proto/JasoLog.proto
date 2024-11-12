@@ -15,16 +15,22 @@ message State {
     string voted_for = 2;
 }
 
+
+/* used to serialize server lists in messages and on disk */
+message ServerList {
+	repeated string server_ids = 1;
+}
+
+
 message Message {
     oneof message_type {
     	HelloRequest hello_request = 10;
     	HelloResult hello_result = 11;
+    	
         AppendRequest append_request = 1;
         AppendResult append_reply = 2;
         VoteRequest vote_request = 3;
         VoteResult vote_result = 4;
-        CallForElectionRequest call_for_election_request = 5;
-        CallForElectionReply call_for_election_result = 6;
      }
 }
 
@@ -36,6 +42,8 @@ message HelloResult {
 	string serverId = 1;
 }
 
+
+	
 
 message AppendRequest {
     int64 term = 1;
@@ -64,18 +72,25 @@ message VoteResult {
     bool vote_granted = 2;
 } 
 
-message CallForElectionRequest {
+
+
+message CreatePartitionRequest {
+	string partition_id = 1;
+	ServerList server_list = 2;
 }
 
-message CallForElectionReply {
-	bool call_for_election = 1;
+message CreatePartitionResult {
+	string partition_id = 1;
+	bool success = 2;
+	optional string message =3;
 }
+
+
       
 service RaftService {
+	rpc CreatePartition (CreatePartitionRequest) returns (CreatePartitionResult);
     rpc onMessage(stream Message) returns (stream Message) {}
 }
-
-
     
 message SetPeersRequest {
 	repeated EndPoint end_points = 1;

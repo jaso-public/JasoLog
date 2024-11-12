@@ -1,5 +1,6 @@
 package jaso.log.raft;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.SocketAddress;
 
@@ -16,8 +17,12 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.stub.StreamObserver;
+import jaso.log.LogConstants;
+import jaso.log.protocol.CreatePartitionRequest;
+import jaso.log.protocol.CreatePartitionResult;
 import jaso.log.protocol.Message;
 import jaso.log.protocol.RaftServiceGrpc;
+import jaso.log.protocol.ServerList;
 
 public class RaftServer {
 	private static Logger log = LogManager.getLogger(RaftServer.class);
@@ -26,8 +31,12 @@ public class RaftServer {
 	// (essentially a bunch of global references)
 	private final RaftServerContext context;
     
+	// all the 
+	private final RaftServerState state;
+
 	// The gRPC server object that is accepting client connections
 	private final Server server;
+	
 			
 	
 
@@ -36,9 +45,8 @@ public class RaftServer {
     	log.info("RaftServer starting rootDirectory:"+context.getRootDirectory().getAbsolutePath());
     	
     	this.context = context;
-         	
+    	this.state = new RaftServerState(context);
     	
-   
         this.server = ServerBuilder
         		.forPort(0)
                 .addService(new RaftServiceImpl())  
@@ -48,10 +56,15 @@ public class RaftServer {
         
         context.getDdbStore().registerServer(context.getServerId().id, context.getIpAddress(), server.getPort());
         
-        
         // get the list of all the partitions that this server believes it is hosting
         // as well as the servers that it believes are the peers.
+        File[] files = new File(context.getRootDirectory(), LogConstants.PARTITIONS_DIRECTORY).listFiles();
+        for(File partitionDir : files) {
+        	String partitionId = partitionDir.getName();
+        	state.openPartition(partitionId);
+        }
         
+         
     }
 
 
@@ -96,8 +109,7 @@ public class RaftServer {
     
     private class RaftServiceImpl extends RaftServiceGrpc.RaftServiceImplBase {
     	
-        @Override
-        public StreamObserver<Message> onMessage(StreamObserver<Message> responseObserver) {
+    	private String getClientAddress() {
             // Access the client address from the context
             String clientAddress = ClientAddressInterceptor.CLIENT_ADDRESS_KEY.get().toString();
 
@@ -107,8 +119,44 @@ public class RaftServer {
                 log.warn("Client address not available.");
                 clientAddress = "***Unknown***";
             }
+            return clientAddress;
+    	}
+    	
+    	
+        @Override
+        public StreamObserver<Message> onMessage(StreamObserver<Message> responseObserver) {
             
-            return new ServerConnection(context, responseObserver, clientAddress);
+            return new ServerConnection(context, state, responseObserver, getClientAddress());
+        }
+        
+        
+        @Override
+        public void createPartition(CreatePartitionRequest request, StreamObserver<CreatePartitionResult> responseObserver) {
+            log.info("Received CreatePartitionRequest for partition: " + request.getPartitionId()+" clientAddress:"+getClientAddress());
+            
+            String partitionId = request.getPartitionId();
+            ServerList serverList = request.getServerList();
+            
+            boolean success = false;
+            String resultMessage = "Error";
+            try {
+            	state.createPartition(partitionId, serverList);
+            	success = true;
+            	resultMessage = "created";
+            } catch(Throwable t) {
+            	log.error("Error creating partiton", t);
+            	success = false;
+            	resultMessage = "Exception"; // TODO better message
+            }
+   
+            CreatePartitionResult result = CreatePartitionResult.newBuilder()
+            		.setPartitionId(request.getPartitionId())
+            		.setSuccess(success)
+            		.setMessage(resultMessage)
+                    .build();
+           
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
         }
     }
 }

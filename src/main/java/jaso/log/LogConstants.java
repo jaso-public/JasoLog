@@ -15,5 +15,8 @@ public class LogConstants {
 	public static final String LOG_ID_PREFIX       = "log-";
 	public static final String PARTITION_ID_PREFIX = "part-";
 	public static final String SERVER_ID_PREFIX    = "server-";
+	
 	public static final String SERVER_ID_FILE_NAME = "serverId";
+	public static final String PARTITIONS_DIRECTORY = "partitions";
+	public static final String SERVER_LIST_FILE_NAME = "serverList";
 }
