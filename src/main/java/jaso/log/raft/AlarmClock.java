@@ -110,6 +110,7 @@ public class AlarmClock implements Runnable {
 		if(event == null) return;
 		
 		Event list = byTime.remove(event.when);
+		if(list == null) return;
 		
 		if(list.next == null) {
 			// this is the only event in the list for this time slot

@@ -1,27 +1,46 @@
 package jaso.log.raft;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import jaso.log.protocol.Message;
 import jaso.log.protocol.ServerList;
+import jaso.log.protocol.VoteRequest;
+import jaso.log.protocol.VoteResult;
 
 public class RaftServerState {
 	private static Logger log = LogManager.getLogger(RaftServerState.class);
 	
 	private final RaftServerContext context;
 	
+	private final ConcurrentHashMap<String,Partition> partitions = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String,PeerServer> peers = new ConcurrentHashMap<>();
 	
+	
+
 	
 	public RaftServerState(RaftServerContext context) {
 		this.context = context;
 	}
 
-
 	
+	public RaftServerContext getContext() {
+		return context;
+	}
+	
+	public String ourId() {
+		return context.getServerId().id;
+	}
+
+	public Partition getPartition(String partitionId) {
+		return partitions.get(partitionId);
+	}
+
+
 	class PeerServer {
 		final String serverId;
 		final PeerConnection connection;
@@ -45,10 +64,6 @@ public class RaftServerState {
 	}
 	
 	
-	private final HashMap<String,Partition> partitions = new HashMap<>();
-	private final HashMap<String,PeerServer> peers = new HashMap<>();
-	
-	
 	
 	public synchronized void createPartition(String partitionId, ServerList serverList) throws IOException {
 		
@@ -64,7 +79,7 @@ public class RaftServerState {
 			throw new RuntimeException();
 		}
 		
-		partition = Partition.createPartition(context, partitionId, serverList);
+		partition = Partition.createPartition(this, partitionId, serverList);
 		partitions.put(partitionId, partition);
 		connectToPeers(partitionId);		
 	}
@@ -76,7 +91,7 @@ public class RaftServerState {
 			throw new RuntimeException();
 		}
 		
-		partition = Partition.openPartition(context, partitionId);
+		partition = Partition.openPartition(this, partitionId);
 		partitions.put(partitionId, partition);
 		connectToPeers(partitionId);		
 	}
@@ -91,15 +106,50 @@ public class RaftServerState {
 			
 			PeerServer peerServer = peers.get(serverId);
 			if(peerServer == null) {
-				PeerConnection connection = new PeerConnection(context, serverId);
+				PeerConnection connection = new PeerConnection(this, serverId);
 				peerServer = new PeerServer(serverId, connection);
 				peers.put(serverId, peerServer);
 			}
 			
 			peerServer.addPartition(partitionId);
 			// start voting for a leader
-			
-			
 		}
 	}
+
+
+	public void serverConnected(String peerId) {
+		PeerServer peerServer = peers.get(peerId);
+		if(peerServer == null) {
+			log.error("Got a peer connected but we don't know them, WTF?  peerId:"+peerId);
+			return;
+		}		
+		
+		for(String partitionId : peerServer.partitions) {
+			Partition partition = partitions.get(partitionId);
+			partition.startElection();			
+		}		
+	}
+
+	public void sendMessage(String peerId, VoteRequest message) {
+		sendMessage(peerId, Message.newBuilder().setVoteRequest(message).build());
+	}
+
+	public void sendMessage(String peerId, VoteResult message) {
+		sendMessage(peerId, Message.newBuilder().setVoteResult(message).build());
+	}
+
+	public void sendMessage(String peerId, Message message) {
+		PeerServer peerServer = peers.get(peerId);
+		if(peerServer == null) {
+			if(peerId.equals(ourId())) {
+				log.error("Asked to send "+message.getMessageTypeCase()+" to ourself peerId:"+peerId);
+			} else {
+				log.error("Asked to send to unknown peerId:"+peerId);
+			}
+			return;
+		}
+		peerServer.connection.send(message);		
+	}
+
+
 }

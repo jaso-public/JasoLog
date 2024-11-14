@@ -9,6 +9,7 @@ import jaso.log.common.ServerId;
 public class RaftServerContext {
 	
 	// required to be passed in
+	private final RaftConfiguration cfg;
     private final ServerId serverId;
     private final File rootDirectory;
     private final String ipAddress;
@@ -16,12 +17,17 @@ public class RaftServerContext {
     private final AlarmClock alarmClock;
 
     
-	public RaftServerContext(ServerId serverId, File rootDirectory, String ipAddress, DdbDataStore ddb, AlarmClock alarmClock) {
+	public RaftServerContext(RaftConfiguration cfg, ServerId serverId, File rootDirectory, String ipAddress, DdbDataStore ddb, AlarmClock alarmClock) {
+		this.cfg = cfg;
 		this.serverId = serverId;
 		this.rootDirectory = rootDirectory;
 		this.ipAddress = ipAddress;
 		this.ddb = ddb;
 		this.alarmClock = alarmClock;
+	}
+
+	public RaftConfiguration getCfg() {
+		return cfg;
 	}
 
 	public ServerId getServerId() {

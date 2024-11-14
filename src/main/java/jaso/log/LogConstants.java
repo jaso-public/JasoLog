@@ -19,4 +19,7 @@ public class LogConstants {
 	public static final String SERVER_ID_FILE_NAME = "serverId";
 	public static final String PARTITIONS_DIRECTORY = "partitions";
 	public static final String SERVER_LIST_FILE_NAME = "serverList";
+	
+	public static final String LAST_VOTE_FILE_NAME = "lastVote";
+	public static final String LAST_VOTE_NEW_FILE_NAME = "lastVoteNew";
 }

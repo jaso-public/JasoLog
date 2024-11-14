@@ -1,10 +1,7 @@
 package jaso.log.server;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.util.Collection;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import jaso.log.DdbDataStore;
 import jaso.log.LogConstants;
 import jaso.log.common.ServerId;
-import jaso.log.protocol.EndPoint;
 import jaso.log.protocol.LogPartition;
 
 public class LogServer {
@@ -63,7 +59,7 @@ public class LogServer {
 				// uploaded to S3 and if so delete the directory
 			}
 			
-			Collection<EndPoint> endPoints = ddb.findEndPoints(partitionName, 100);
+			// Collection<EndPoint> endPoints = ddb.findEndPoints(partitionName, 100);
 			
 			// contact the leader and see if our server id is still hosting this partition
 			

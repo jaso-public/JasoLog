@@ -1,10 +1,13 @@
 package jaso.log.raft;
 
+import java.net.ConnectException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.HelloRequest;
 import jaso.log.protocol.Message;
@@ -15,8 +18,9 @@ import jaso.log.protocol.RaftServiceGrpc;
 public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handler {
 	private static Logger log = LogManager.getLogger(PeerConnection.class);
 
-	private final RaftServerContext context;
-
+	private final RaftServerState state;
+	
+	
 	private ManagedChannel channel;		
 	private RaftServiceGrpc.RaftServiceStub asyncStub;
 	private StreamObserver<Message> observer;
@@ -27,23 +31,24 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	
 	
 	
-	public PeerConnection(RaftServerContext context, String peerServerId) {
-		if(peerServerId.equals(context.getServerId().id)) {
+	public PeerConnection(RaftServerState state, String peerServerId) {
+		String ourId = state.getContext().getServerId().id;
+		if(peerServerId.equals(ourId)) {
 			throw new IllegalArgumentException("Attempting to connect to ourselves -- WTF? peerServerId:"+peerServerId);
 		} else {
-			log.info("serverId:"+context.getServerId().id+" attempting to connect to peerServerId:"+peerServerId);
+			log.info("serverId:"+ourId+" attempting to connect to peerServerId:"+peerServerId);
 		}
 		
-    	this.context = context;
+    	this.state = state;
     	this.peerServerId = peerServerId;
 	    connect();
     }
         
     private void connect() {  
-	    context.getAlarmClock().cancel(connectAlarmId);
-	    connectAlarmId = context.getAlarmClock().schedule(this,  null,  3000);	
+    	state.getContext().getAlarmClock().cancel(connectAlarmId);
+	    connectAlarmId = state.getContext().getAlarmClock().schedule(this,  null,  3000);	
     	
-    	String peerAddress = context.getDdbStore().getServerAddress(peerServerId); 
+    	String peerAddress = state.getContext().getDdbStore().getServerAddress(peerServerId); 
     	if(peerAddress == null) {
     		log.error("Could not find a peer address for peerServerId:"+peerServerId);
     		return;
@@ -54,15 +59,16 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	    observer = asyncStub.onMessage(this);
 
     	
-	    HelloRequest hello = HelloRequest.newBuilder().setServerId(context.getServerId().id).build();
+	    String ourId = state.getContext().getServerId().id;
+		HelloRequest hello = HelloRequest.newBuilder().setServerId(ourId).build();
 	    Message message = Message.newBuilder().setHelloRequest(hello).build();
-        log.info("sending HelloRequest to peerAddress:"+peerAddress+", hopefully this is peerServerId:"+peerServerId);
+        log.info("Send:"+message.getMessageTypeCase()+" peerAddress:"+peerAddress+", hopefully this is peerServerId:"+peerServerId);
 	    observer.onNext(message);
     }	    
     
     public void closeAndReconnect() {
-	    context.getAlarmClock().cancel(connectAlarmId);
-	    connectAlarmId = context.getAlarmClock().schedule(this,  null,  3000);	
+    	state.getContext().getAlarmClock().cancel(connectAlarmId);
+	    connectAlarmId = state.getContext().getAlarmClock().schedule(this,  null,  3000);	
     }
     
 	@Override
@@ -78,16 +84,16 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	@Override
     public void onNext(Message message) {
 		MessageTypeCase mtc = message.getMessageTypeCase();
-        log.info("Received message, peer:"+peerServerId+" MessageTypeCase:" + mtc);
+        log.info("Received:"+mtc+" peer:"+peerServerId);
         
         if(mtc == MessageTypeCase.HELLO_RESULT ) {
         	String otherPeerId = message.getHelloResult().getServerId();
         	if(peerServerId.equals(otherPeerId)) {
         		log.info("peerServerId:"+peerServerId+" has replied with HelloResult");
         		connectedAndVerified = true;
-            	context.getAlarmClock().cancel(connectAlarmId);
+        		state.getContext().getAlarmClock().cancel(connectAlarmId);
             	
-        		// send pending messages
+        	    state.serverConnected(peerServerId);
         		return;
         	}
         	
@@ -95,13 +101,27 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
         	closeAndReconnect();	
         	         	
         } else {
-            log.error("Received message, peer:"+peerServerId+" MessageTypeCase:" + mtc + " -- only expect HelloResult");
+            log.error("Only expect HelloResult on this connection. Received:"+mtc+" peer:"+peerServerId);
         }
 	}
 	
     @Override
-    public void onError(Throwable throwable) {	  
-    	log.error("onError(), peerServerId:"+peerServerId, throwable);
+    public void onError(Throwable t) {
+    	boolean connectProblem = false;
+    	
+    	if(t instanceof StatusRuntimeException) {
+    		StatusRuntimeException sre = (StatusRuntimeException) t;
+    		Throwable t2 = sre.getCause();
+    		if(t2 instanceof ConnectException) {
+    			log.warn("onError(), Connect failure to peerServerId:"+peerServerId);	
+    			connectProblem = true;
+    		}
+    	}
+    	
+    	if(!connectProblem) {
+    		log.error("onError(), peerServerId:"+peerServerId, t);
+    	}
+    	
     	closeAndReconnect();
     }
 
@@ -113,11 +133,11 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	
     public void send(Message message) {
     	if(!connectedAndVerified) {
-    		log.error("being asked to send a message to an unverified peer:"+peerServerId);
+    		log.warn("Unverified attempt -- Send: "+message.getMessageTypeCase()+" peerServerId:"+peerServerId);
     		return;
     	}
     	
-        log.info("sending message, peerServerId:"+peerServerId+" MessageTypeCase:" + message.getMessageTypeCase());
+        log.info("Send: "+message.getMessageTypeCase()+" peerServerId:"+peerServerId);
 	    observer.onNext(message);
     }
 

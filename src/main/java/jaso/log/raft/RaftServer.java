@@ -26,12 +26,8 @@ import jaso.log.protocol.ServerList;
 
 public class RaftServer {
 	private static Logger log = LogManager.getLogger(RaftServer.class);
-
-	// The context that the server needs to do its work. 
-	// (essentially a bunch of global references)
-	private final RaftServerContext context;
     
-	// all the 
+	// reference to all the state this server is managing
 	private final RaftServerState state;
 
 	// The gRPC server object that is accepting client connections
@@ -44,7 +40,6 @@ public class RaftServer {
     public RaftServer(RaftServerContext context) throws IOException {
     	log.info("RaftServer starting rootDirectory:"+context.getRootDirectory().getAbsolutePath());
     	
-    	this.context = context;
     	this.state = new RaftServerState(context);
     	
         this.server = ServerBuilder
@@ -63,8 +58,6 @@ public class RaftServer {
         	String partitionId = partitionDir.getName();
         	state.openPartition(partitionId);
         }
-        
-         
     }
 
 
@@ -126,7 +119,7 @@ public class RaftServer {
         @Override
         public StreamObserver<Message> onMessage(StreamObserver<Message> responseObserver) {
             
-            return new ServerConnection(context, state, responseObserver, getClientAddress());
+            return new ServerConnection(state, responseObserver, getClientAddress());
         }
         
         
