@@ -1,13 +1,13 @@
-package jaso.log;
+package jaso.log.simple;
 
 import java.util.concurrent.CountDownLatch;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import jaso.log.protocol.Event;
+import jaso.log.protocol.ClientRequest;
+import jaso.log.protocol.ClientResponse;
 import jaso.log.protocol.LogServiceGrpc;
-import jaso.log.protocol.Request;
 import jaso.log.protocol.SubscribeRequest;
 
 public class SimpleSubscriber {
@@ -25,9 +25,9 @@ public class SimpleSubscriber {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Call the Chat RPC and create a StreamObserver to handle responses
-        StreamObserver<Request> requestObserver = asyncStub.send(new StreamObserver<Event>() {
+        StreamObserver<ClientRequest> requestObserver = asyncStub.onClientMessage(new StreamObserver<ClientResponse>() {
             @Override
-            public void onNext(Event event) {
+            public void onNext(ClientResponse event) {
                 // Handle each response from the server
                 System.out.println("Subscriber received from server: " + event);
             }
@@ -50,7 +50,7 @@ public class SimpleSubscriber {
         SubscribeRequest request = SubscribeRequest.newBuilder().build();
         
         // Respond to the client with a ChatResponse message
-        requestObserver.onNext(Request.newBuilder().setSubscribeRequest(request).build());
+        requestObserver.onNext(ClientRequest.newBuilder().setSubscribeRequest(request).build());
 
         latch.await();
         

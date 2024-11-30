@@ -1,5 +1,6 @@
-package jaso.log;
+package jaso.log.simple;
 
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -8,12 +9,13 @@ import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import jaso.log.protocol.Event;
+import jaso.log.protocol.ClientRequest;
+import jaso.log.protocol.ClientResponse;
+import jaso.log.protocol.LogData;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
-import jaso.log.protocol.Request;
 
-public class SimpleLogClient {
+public class SimpleLogGenerator {
 
     public static void main(String[] args) throws InterruptedException {
         // Create a channel to connect to the server
@@ -28,9 +30,9 @@ public class SimpleLogClient {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Call the Chat RPC and create a StreamObserver to handle responses
-        StreamObserver<Request> requestObserver = asyncStub.send(new StreamObserver<Event>() {
+        StreamObserver<ClientRequest> requestObserver = asyncStub.onClientMessage(new StreamObserver<ClientResponse>() {
             @Override
-            public void onNext(Event event) {
+            public void onNext(ClientResponse event) {
                 // Handle each response from the server
                 System.out.println("Received from server: " + event);
             }
@@ -53,10 +55,19 @@ public class SimpleLogClient {
         // Send a stream of messages to the server
         for (int i = 1; i <= 5; i++) {
         	
-            LogRequest lr = LogRequest.newBuilder().setKey(ByteString.copyFromUtf8("key")).setValue(ByteString.copyFromUtf8("val")).build();
+        	
+            LogData logData = LogData.newBuilder()
+            		.setKey(ByteString.copyFromUtf8("key"))
+            		.setPayload(ByteString.copyFromUtf8("val"))
+            		.setRequestId(UUID.randomUUID().toString())
+            		.build();
+            
+            LogRequest logRequest = LogRequest.newBuilder()
+            		.setLogData(logData)
+            		.build();
             
             // Respond to the client with a ChatResponse message
-            Request request = Request.newBuilder().setLogRequest(lr).build();
+            ClientRequest request = ClientRequest.newBuilder().setLogRequest(logRequest).build();
   
             requestObserver.onNext(request);
             Thread.sleep(1000);  // Simulate delay between messages
