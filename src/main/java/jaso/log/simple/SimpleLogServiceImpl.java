@@ -45,7 +45,7 @@ public class SimpleLogServiceImpl extends LogServiceGrpc.LogServiceImplBase {
     
     @Override
     public StreamObserver<ClientRequest> onClientMessage(StreamObserver<ClientResponse> responseObserver) {
-        
+        log.info("new client connection:"+getClientAddress());
         return new SimpleClientConnection(state, responseObserver, getClientAddress());
     }
     

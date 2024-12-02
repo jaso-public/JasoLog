@@ -1,39 +1,41 @@
 package jaso.log;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32C;
 
 import com.google.protobuf.ByteString;
 
-import jaso.log.protocol.LogEvent;
-
 public class CrcHelper {
 	
-	private static void updateInt(CRC32C crc, int value) {
+	public static void updateInt(CRC32C crc, int ... values) {
 		byte[] bytes = new byte[Integer.BYTES];
 		ByteBuffer buffer = ByteBuffer.wrap(bytes);
-		buffer.putInt(value);
-		crc.update(bytes);
+		for(int value : values) {
+			buffer.clear();
+			buffer.putInt(value);
+			crc.update(bytes);
+		}
 	}
 
-	private static void updateLong(CRC32C crc, long value) {
+	public static void updateLong(CRC32C crc, long ... values ) {
 		byte[] bytes = new byte[Long.BYTES];
 		ByteBuffer buffer = ByteBuffer.wrap(bytes);
-		buffer.putLong(value);
-		crc.update(bytes);
+		for(long value : values) {
+			buffer.clear();
+			buffer.putLong(value);
+			crc.update(bytes);
+		}
 	}
-
-	private static int computeOverallChecksum(long lsn, int checksum, ByteString requestId)  {
-		return computeOverallChecksum(lsn, checksum, requestId.toByteArray());
-	}
-
-	private static int computeOverallChecksum(long lsn, int checksum, byte[] requestId)  {
+	
+	public static int computeCrc32c(long ... values ) {
 		CRC32C crc = new CRC32C();
-		CrcHelper.updateLong(crc, lsn);
-		CrcHelper.updateInt(crc, checksum);
-		CrcHelper.updateInt(crc, requestId.length);
-		crc.update(requestId);		
+		byte[] bytes = new byte[Long.BYTES];
+		ByteBuffer buffer = ByteBuffer.wrap(bytes);
+		for(long value : values) {
+			buffer.clear();
+			buffer.putLong(value);
+			crc.update(bytes);
+		}
 		return (int) crc.getValue();
 	}
 	
@@ -71,7 +73,7 @@ public class CrcHelper {
 	    return (int) crc.getValue();
 	}
 	
-	
+/*	
 	
 	public static void verifyChecksum(LogEvent logEvent) {
 		int computed = computeCrc32c(logEvent.getKey(), logEvent.getValue());
@@ -105,5 +107,6 @@ public class CrcHelper {
 				.setChecksum(overallCrc)
 				.build();
 	}
+	*/
 
 }

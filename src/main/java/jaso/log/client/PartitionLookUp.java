@@ -6,7 +6,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import jaso.log.DdbDataStore;
-import jaso.log.protocol.EndPoint;
 import jaso.log.protocol.LogPartition;
 
 public class PartitionLookUp implements Runnable {
@@ -21,6 +20,10 @@ public class PartitionLookUp implements Runnable {
 	private final String logId;
 	private final byte[] key;
 	private final Callback callback;
+	
+	class EndPoint {
+	
+	}
 	
 	/**
 	 * the callback interface used to inform the caller of the results
@@ -60,7 +63,8 @@ public class PartitionLookUp implements Runnable {
 				}
 				
 				// now get the end points.
-				Collection<EndPoint> endpoints = ddb.findEndPoints(partition.getPartitionId(), NUMBER_OF_ENDPOINTS);
+				// Collection<EndPoint> endpoints = ddb.findEndPoints(partition.getPartitionId(), NUMBER_OF_ENDPOINTS);
+				Collection<EndPoint> endpoints = null;
 				if(endpoints.size() < 1) {
 					long elapsed = System.currentTimeMillis() - startTime;
 					if(elapsed > MAX_WAIT_TIME) {

@@ -1,14 +1,16 @@
 package jaso.log.simple;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import com.google.protobuf.ByteString;
-
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import jaso.log.common.ItemHelper;
+import jaso.log.protocol.Action;
 import jaso.log.protocol.ClientRequest;
 import jaso.log.protocol.ClientResponse;
 import jaso.log.protocol.LogData;
@@ -53,12 +55,16 @@ public class SimpleLogGenerator {
         });
 
         // Send a stream of messages to the server
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= 50; i++) {
         	
+        	
+        	Map<String,String> map = new HashMap<>();
+        	for(int k=0; k<5; k++) map.put("key-"+k, "value-"+k);
         	
             LogData logData = LogData.newBuilder()
-            		.setKey(ByteString.copyFromUtf8("key"))
-            		.setPayload(ByteString.copyFromUtf8("val"))
+            		.setKey("key")
+            		.setItem(ItemHelper.createItem(map))
+            		.setAction(Action.WRITE)
             		.setRequestId(UUID.randomUUID().toString())
             		.build();
             
@@ -69,8 +75,7 @@ public class SimpleLogGenerator {
             // Respond to the client with a ChatResponse message
             ClientRequest request = ClientRequest.newBuilder().setLogRequest(logRequest).build();
   
-            requestObserver.onNext(request);
-            Thread.sleep(1000);  // Simulate delay between messages
+            requestObserver.onNext(request);            
         }
 
         // Tell the server that the client has finished sending messages

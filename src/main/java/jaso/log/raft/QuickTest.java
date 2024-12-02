@@ -17,6 +17,7 @@ public class QuickTest {
 		ServerId serverId = ServerId.fromFile(path);  
 		return new RaftServerContext(new RaftConfiguration(), serverId, path, "127.0.0.1", ddbStore, alarmClock);		
 	}
+	
 	public static void main(String[] args) throws IOException, InterruptedException {
 		
 		int NUM = 3;

@@ -17,8 +17,8 @@ import jaso.log.LogConstants;
 import jaso.log.common.ServerId;
 import jaso.log.protocol.CreatePartitionRequest;
 import jaso.log.protocol.CreatePartitionResult;
-import jaso.log.protocol.RaftServiceGrpc;
-import jaso.log.protocol.RaftServiceGrpc.RaftServiceBlockingStub;
+import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.LogServiceGrpc.LogServiceBlockingStub;
 import jaso.log.protocol.ServerList;
 
 public class PartitionCreator {
@@ -58,7 +58,7 @@ public class PartitionCreator {
 	    	}
 
 	    	ManagedChannel channel = ManagedChannelBuilder.forTarget(peerAddress).usePlaintext().build();
-	    	RaftServiceBlockingStub blockingStub = RaftServiceGrpc.newBlockingStub(channel);
+	    	LogServiceBlockingStub blockingStub = LogServiceGrpc.newBlockingStub(channel);
          
 	    	CreatePartitionResult result = blockingStub.createPartition(request);
 	        System.out.println("Received result: " + result.getMessage());

@@ -7,78 +7,84 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-
-import jaso.log.CrcHelper;
 import jaso.log.LogConstants;
-import jaso.log.protocol.LogEvent;
+import jaso.log.protocol.LogEntry;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class LogReader {
 	
 	private InputStream inputStream = null;
-	private LogEvent nextLogEvent = null;
+	private LogEntry nextLogEntry = null;
 
 
 	public LogReader(String partitionId, long firstLsn) throws IOException {
 
-		AWSCredentialsProvider credentialsProvider = new ProfileCredentialsProvider(LogConstants.PROFILE_NAME);
-		AmazonS3 s3Client = AmazonS3Client.builder()
-				.withCredentials(credentialsProvider) 
-				.withRegion(LogConstants.REGION_NAME)
-				.build();
-
-		String prefix = partitionId + "-";
-
-		ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
-				.withBucketName(LogConstants.BUCKET_NAME)
-				.withPrefix(prefix)
-				.withMaxKeys(1);
-
-		// Call S3 to list objects in the bucket
-		ObjectListing objectListing = s3Client.listObjects(listObjectsRequest);
-
-		// Get and print the first object key (if it exists)
-		if (objectListing.getObjectSummaries().isEmpty()) {
-			s3Client.shutdown();
-			return;
-		}
+		File file = null;
 		
-		String objectName = objectListing.getObjectSummaries().get(0).getKey();
-		if( !objectName.startsWith(prefix)) {
-			s3Client.shutdown();
-			return;			
+		try(S3Client s3Client = S3Client.builder()
+	            .credentialsProvider(ProfileCredentialsProvider.create(LogConstants.PROFILE_NAME))
+	            .region(Region.of(LogConstants.REGION_NAME))
+	            .build()) {
+			
+			String prefix = partitionId + "-";
+
+			ListObjectsRequest listObjectsRequest = ListObjectsRequest.builder()
+					.bucket(LogConstants.BUCKET_NAME)
+					.prefix(prefix)
+					.maxKeys(1)
+					.build();
+
+			// Call S3 to list objects in the bucket
+			ListObjectsResponse listObjectsResponse = s3Client.listObjects(listObjectsRequest);			
+	
+			List<S3Object> list = listObjectsResponse.contents();
+			// Get and print the first object key (if it exists)
+			if (list.isEmpty()) return;
+			
+			String objectName = list.get(0).key();
+			if( !objectName.startsWith(prefix)) return;
+			 
+			file = new File(LogConstants.CACHING_DIR.toFile(), objectName+".log");
+			if(file.exists()) file.delete();
+			Path path = Paths.get(file.getAbsolutePath());
+			
+			GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+					.bucket(LogConstants.BUCKET_NAME)
+					.key(objectName)
+					.build();
+			
+	        s3Client.getObject(getObjectRequest, path);			
 		}
-		 
-		File file = new File(LogConstants.CACHING_DIR.toFile(), objectName);
-        s3Client.getObject(new GetObjectRequest(LogConstants.BUCKET_NAME, objectName), file);
-		s3Client.shutdown();
 		
 		inputStream = new BufferedInputStream(new FileInputStream(file));	
 		
 		while(true) {
-			nextLogEvent = readNext();
-			System.out.println(nextLogEvent);
-			if(nextLogEvent == null) return;
-			if(nextLogEvent.getLsn() == firstLsn) return;
+			nextLogEntry = readNext();
+			System.out.println(nextLogEntry);
+			if(nextLogEntry == null) return;
+			if(nextLogEntry.getLsn() == firstLsn) return;
 		}
 	}
 	
 	
-	public LogEvent next() throws IOException {
-		if(nextLogEvent == null) return null;	
-		LogEvent result = nextLogEvent;
-		nextLogEvent = readNext();
+	public LogEntry next() throws IOException {
+		if(nextLogEntry == null) return null;	
+		LogEntry result = nextLogEntry;
+		nextLogEntry = readNext();
 		return result;
 	}
 	
-	private LogEvent readNext() throws IOException {
+	private LogEntry readNext() throws IOException {
 		try {
 			byte[] lengthBytes = new byte[Integer.BYTES];
 			readFully(inputStream, lengthBytes);
@@ -87,10 +93,10 @@ public class LogReader {
 			System.out.println("length:"+length);
 			byte[] bytes = new byte[length];
 			readFully(inputStream, bytes);
-			LogEvent le = LogEvent.parseFrom(bytes);
+			LogEntry le = LogEntry.parseFrom(bytes);
 			System.out.println(le);
 
-			CrcHelper.verifyChecksum(le);
+//			CrcHelper.verifyChecksum(le);
 			return le;
 		} catch(EOFException eof) {
 			close();
@@ -124,7 +130,7 @@ public class LogReader {
 	
 	public void close() throws IOException {
 		if(inputStream==null) return;
-		nextLogEvent = null;
+		nextLogEntry = null;
 		inputStream.close();
 		inputStream = null;
 	}

@@ -2,26 +2,21 @@ package jaso.log.raft;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.SocketAddress;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.Context;
-import io.grpc.Contexts;
-import io.grpc.Grpc;
-import io.grpc.Metadata;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.ServerCall;
-import io.grpc.ServerCallHandler;
-import io.grpc.ServerInterceptor;
 import io.grpc.stub.StreamObserver;
 import jaso.log.LogConstants;
+import jaso.log.common.ClientAddressInterceptor;
+import jaso.log.protocol.ClientRequest;
+import jaso.log.protocol.ClientResponse;
 import jaso.log.protocol.CreatePartitionRequest;
 import jaso.log.protocol.CreatePartitionResult;
-import jaso.log.protocol.Message;
-import jaso.log.protocol.RaftServiceGrpc;
+import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.ServerList;
 
 public class RaftServer {
@@ -61,28 +56,7 @@ public class RaftServer {
     }
 
 
-	    
-	public static class ClientAddressInterceptor implements ServerInterceptor {
-	    // Define a context key to store the client address
-	    public static final Context.Key<SocketAddress> CLIENT_ADDRESS_KEY = Context.key("clientAddress");
-
-	    @Override
-	    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
-	            ServerCall<ReqT, RespT> call,
-	            Metadata headers,
-	            ServerCallHandler<ReqT, RespT> next) {
-
-	        // Get the client address from the call attributes
-	        SocketAddress clientAddress = call.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
-
-	        // Attach the client address to the context
-	        Context context = Context.current().withValue(CLIENT_ADDRESS_KEY, clientAddress);
-
-	        // Proceed with the call in the modified context
-	        return Contexts.interceptCall(context, call, headers, next);
-	    }
-	}
-	
+	    	
     
     public void stop() {
         if (server != null) {
@@ -100,7 +74,7 @@ public class RaftServer {
     }
 
     
-    private class RaftServiceImpl extends RaftServiceGrpc.RaftServiceImplBase {
+    private class RaftServiceImpl extends LogServiceGrpc.LogServiceImplBase {
     	
     	private String getClientAddress() {
             // Access the client address from the context
@@ -117,11 +91,19 @@ public class RaftServer {
     	
     	
         @Override
-        public StreamObserver<Message> onMessage(StreamObserver<Message> responseObserver) {
+        public StreamObserver<PeerMessage> onPeerMessage(StreamObserver<PeerMessage> responseObserver) {
             
             return new ServerConnection(state, responseObserver, getClientAddress());
         }
         
+        
+        @Override
+        public StreamObserver<ClientRequest> onClientMessage(StreamObserver<ClientResponse> responseObserver) {
+            
+            return new ClientConnection(state, responseObserver, getClientAddress());
+        }
+        
+
         
         @Override
         public void createPartition(CreatePartitionRequest request, StreamObserver<CreatePartitionResult> responseObserver) {

@@ -7,32 +7,32 @@ import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.AppendRequest;
 import jaso.log.protocol.AppendResult;
 import jaso.log.protocol.HelloResult;
-import jaso.log.protocol.Message;
-import jaso.log.protocol.Message.MessageTypeCase;
+import jaso.log.protocol.PeerMessage;
+import jaso.log.protocol.PeerMessage.MessageTypeCase;
 import jaso.log.protocol.VoteRequest;
 import jaso.log.protocol.VoteResult;
 
 
-public class ServerConnection implements StreamObserver<Message> {
+public class ServerConnection implements StreamObserver<PeerMessage> {
 	private static Logger log = LogManager.getLogger(ServerConnection.class);
 
 	private final RaftServerState state;
 	
-	private final StreamObserver<Message> observer;
+	private final StreamObserver<PeerMessage> observer;
 	private final String clientAddress;
 
 	// set when we get a HelloRequest
 	private String peerServerId = null;
 
 	
-	public ServerConnection(RaftServerState state, StreamObserver<Message> observer, String clientAddress) {
+	public ServerConnection(RaftServerState state, StreamObserver<PeerMessage> observer, String clientAddress) {
 		this.state = state;
 		this.observer = observer;
 		this.clientAddress = clientAddress;
 	}	
 
 	@Override
-    public void onNext(Message message) {
+    public void onNext(PeerMessage message) {
 		MessageTypeCase mtc = message.getMessageTypeCase();
         log.info("Received:"+mtc+" peer:"+peerServerId);
 
@@ -48,7 +48,7 @@ public class ServerConnection implements StreamObserver<Message> {
                 	observer.onCompleted();
                 } else {
 	        	   	HelloResult helloResult = HelloResult.newBuilder().setServerId(state.getContext().getServerId().id).build();
-	        	   	Message response = Message.newBuilder().setHelloResult(helloResult).build();
+	        	   	PeerMessage response = PeerMessage.newBuilder().setHelloResult(helloResult).build();
                 	log.info("send:"+response.getMessageTypeCase()+", peerServerId:"+peerServerId+" at:"+clientAddress);
 	        	    observer.onNext(response);
                 }

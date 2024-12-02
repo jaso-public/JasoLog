@@ -10,20 +10,20 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.HelloRequest;
-import jaso.log.protocol.Message;
-import jaso.log.protocol.Message.MessageTypeCase;
-import jaso.log.protocol.RaftServiceGrpc;
+import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.PeerMessage;
+import jaso.log.protocol.PeerMessage.MessageTypeCase;
 
 
-public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handler {
+public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.Handler {
 	private static Logger log = LogManager.getLogger(PeerConnection.class);
 
 	private final RaftServerState state;
 	
 	
 	private ManagedChannel channel;		
-	private RaftServiceGrpc.RaftServiceStub asyncStub;
-	private StreamObserver<Message> observer;
+	private LogServiceGrpc.LogServiceStub asyncStub;
+	private StreamObserver<PeerMessage> observer;
 
 	private final String peerServerId;
 	private long connectAlarmId = -1;
@@ -55,13 +55,13 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
     	}
     	
 	    channel = ManagedChannelBuilder.forTarget(peerAddress).usePlaintext().build();
-	    asyncStub = RaftServiceGrpc.newStub(channel);
-	    observer = asyncStub.onMessage(this);
+	    asyncStub = LogServiceGrpc.newStub(channel);
+	    observer = asyncStub.onPeerMessage(this);
 
     	
 	    String ourId = state.getContext().getServerId().id;
 		HelloRequest hello = HelloRequest.newBuilder().setServerId(ourId).build();
-	    Message message = Message.newBuilder().setHelloRequest(hello).build();
+		PeerMessage message = PeerMessage.newBuilder().setHelloRequest(hello).build();
         log.info("Send:"+message.getMessageTypeCase()+" peerAddress:"+peerAddress+", hopefully this is peerServerId:"+peerServerId);
 	    observer.onNext(message);
     }	    
@@ -82,7 +82,7 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
 	}
 	
 	@Override
-    public void onNext(Message message) {
+    public void onNext(PeerMessage message) {
 		MessageTypeCase mtc = message.getMessageTypeCase();
         log.info("Received:"+mtc+" peer:"+peerServerId);
         
@@ -131,7 +131,7 @@ public class PeerConnection implements StreamObserver<Message>, AlarmClock.Handl
     	closeAndReconnect();
 	}
 	
-    public void send(Message message) {
+    public void send(PeerMessage message) {
     	if(!connectedAndVerified) {
     		log.warn("Unverified attempt -- Send: "+message.getMessageTypeCase()+" peerServerId:"+peerServerId);
     		return;

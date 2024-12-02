@@ -5,15 +5,23 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Random;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.protobuf.ByteString;
+
+import io.grpc.stub.StreamObserver;
 import jaso.log.LogConstants;
 import jaso.log.protocol.AppendRequest;
 import jaso.log.protocol.AppendResult;
+import jaso.log.protocol.ClientResponse;
 import jaso.log.protocol.LastVoteInfo;
+import jaso.log.protocol.LogData;
+import jaso.log.protocol.LogEntry;
+import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.ServerList;
 import jaso.log.protocol.VoteRequest;
 import jaso.log.protocol.VoteResult;
@@ -30,13 +38,17 @@ public class Partition implements AlarmClock.Handler {
 	private LastVoteInfo lastVoteInfo;
 	
 	boolean isLeader = false;
+	String leaderId = null;
 	int votesGathered = 0;
 	
-	long term = 2;
-	long last_log_index = 4;
-	long last_log_term = 5;
+	long nextLsn = 0;
+	long currentTerm = 0;
+	long previousLogTerm = 0;
+	long previousLogIndex = 0;
 
 	long timerId = 0;
+	
+	RandomAccessFile raf = null;
 	
 	
 	public Partition(RaftServerState state, String partitionId, File partitionPath, ServerList serverList) throws IOException {
@@ -46,6 +58,9 @@ public class Partition implements AlarmClock.Handler {
 		this.serverList = serverList;
 		resetAlarmClock();
 		readLastVoteInfo();
+		
+		File currentFile = new File(partitionPath, LogConstants.CURRENT_LOG_FILE_NAME);
+		raf = new RandomAccessFile(currentFile, "rw");
 	}
 
 
@@ -134,15 +149,22 @@ public class Partition implements AlarmClock.Handler {
 	
 	
 	public void startElection() {
-		term++;
+		currentTerm++;
 		votesGathered = 1;
+		
+		try {
+			log.info("starting an election, term:"+currentTerm+", candidateId:"+state.ourId());
+			writeVote(state.ourId(), currentTerm);
+		} catch(IOException ioe) {
+			log.error("Problem persisting our vote.", ioe);
+		}
 		
 		VoteRequest voteRequest = VoteRequest.newBuilder()
 			.setPartitionId(partitionId)
-			.setTerm(term)
+			.setTerm(currentTerm)
 			.setCandidateId(state.getContext().getServerId().id)
-			.setLastLogTerm(last_log_term)
-			.setLastLogIndex(last_log_index)
+			.setLastLogTerm(previousLogTerm)
+			.setLastLogIndex(previousLogIndex)
 			.build();
 
 		for(String serverId : serverList.getServerIdsList()) {
@@ -156,15 +178,15 @@ public class Partition implements AlarmClock.Handler {
 		long candidateTerm = voteRequest.getTerm();
 		String candidateId = voteRequest.getCandidateId();
 		
-		if(candidateTerm < term) {
-			log.info("Rejecting vote, candidateTerm:"+candidateTerm+" < our term:"+term);
-			sendVoteResult(serverId, term, false);
+		if(candidateTerm < currentTerm) {
+			log.info("Rejecting vote, candidateTerm:"+candidateTerm+" < our term:"+currentTerm);
+			sendVoteResult(serverId, currentTerm, false);
 			return;
 		}
 		
 		if(candidateTerm == lastVoteInfo.getTerm() && candidateId.equals(lastVoteInfo.getVotedFor())) {
 			log.info("Accepting vote, matches previous, candidateTerm:"+candidateTerm+", candidateId:"+candidateId);
-			sendVoteResult(serverId, term, true);
+			sendVoteResult(serverId, currentTerm, true);
 			return;			
 		}
 		
@@ -173,10 +195,10 @@ public class Partition implements AlarmClock.Handler {
 		try {
 			log.info("Accepting vote, candidateTerm:"+candidateTerm+", candidateId:"+candidateId);
 			writeVote(candidateId, candidateTerm);
-			sendVoteResult(serverId, term, true);
+			sendVoteResult(serverId, currentTerm, true);
 		} catch(IOException ioe) {
 			log.error("Reject vote, cannot persist", ioe);
-			sendVoteResult(serverId, term, false);
+			sendVoteResult(serverId, currentTerm, false);
 		}
 	}
 	
@@ -193,8 +215,12 @@ public class Partition implements AlarmClock.Handler {
 	
 	
 	public void voteResult(String peerServerId, VoteResult voteResult) {
-		if(term != voteResult.getTerm()) {
-			log.warn("VoteResult terms differ ours:"+term+" voted:"+voteResult.getTerm()+" peer:"+peerServerId);
+		if(currentTerm != voteResult.getTerm()) {
+			log.warn("VoteResult terms differ ours:"+currentTerm+" voted:"+voteResult.getTerm()+" peer:"+peerServerId);
+			if(voteResult.getTerm() > currentTerm) {
+				currentTerm = voteResult.getTerm();
+				votesGathered = 0;
+			}
 			return;
 		}
 		
@@ -212,13 +238,33 @@ public class Partition implements AlarmClock.Handler {
 	}
 
 	public void appendRequest(String peerServerId, AppendRequest appendRequest) {
-		// TODO Auto-generated method stub
-		
+		long peerTerm = appendRequest.getCurrentTerm();
+		if(peerTerm < currentTerm) {
+			log.info("peerTerm:"+peerTerm+" is less than term:"+currentTerm+" peerServerId:"+peerServerId);
+			AppendResult appendResult = AppendResult.newBuilder()
+						.setPartitionId(partitionId)
+						.setTerm(currentTerm)
+						.setSuccess(false)
+						.build();
+			state.sendMessage(peerServerId, appendResult);
+			return;
+		}
 	}
 
 
 	public void appendResult(String peerServerId, AppendResult appendResult) {
-		// TODO Auto-generated method stub
+		long peerTerm = appendResult.getTerm();
+		if(peerTerm > currentTerm) {
+			log.info("updating term, peerTerm:"+peerTerm+" is greater than term:"+currentTerm+" peerServerId:"+peerServerId);
+			currentTerm = peerTerm;
+			return;			
+		}
+		
+		if(! appendResult.getSuccess()) {
+			log.info("append not successful, peerTerm:"+peerTerm+" peerServerId:"+peerServerId);
+			return;			
+		}
+			
 		
 	}
 
@@ -247,6 +293,66 @@ public class Partition implements AlarmClock.Handler {
 		
 		state.getContext().getAlarmClock().cancel(timerId);
 		state.getContext().getAlarmClock().schedule(this, null, nextAlarm);		
+	}
+
+
+	public void logRequest(StreamObserver<ClientResponse> observer, LogRequest logRequest) {
+		LogData logData = logRequest.getLogData();
+		String requestId = logData.getRequestId();
+		
+		if(! isLeader) {
+			log.warn("LogRequest but not leader, leader:"+leaderId);			
+			// Helper.sendNotLeader(observer, requestId, leaderId);
+			//TODO send proper message
+			return;			
+		}
+		
+		// check for duplicates
+		
+		// check LSN
+		
+		// check that the key is in the partitions range
+		
+		// seems like it is GTG assign lsn and append at the peers.
+		
+		
+		ByteString byteString = null;
+		synchronized(this) {
+//			CRC32C crc = new CRC32C();
+//			CrcHelper.updateLong(crc, dataChecksum, nextLsn, currentTerm, previousLogIndex+1);
+//			int entryChecksum = (int) crc.getValue();
+			
+			LogEntry logEntry = LogEntry.newBuilder()
+					.setLogData(logData)
+					.setLsn(nextLsn)
+					.setTime(System.currentTimeMillis())	
+//					.setChecksum(entryChecksum)
+					.build();
+			
+			byte[] bytesToLog = logEntry.toByteArray();
+			byteString = ByteString.copyFrom(bytesToLog);
+			
+			// now is a good time to verify the checksums
+			nextLsn += bytesToLog.length + Integer.BYTES;
+			previousLogIndex++;
+			previousLogTerm = currentTerm;			
+		}
+		
+		AppendRequest appendRequest = AppendRequest.newBuilder()
+				.setPartitionId(partitionId)
+				.setLeaderId(state.ourId())
+				.setPreviousTerm(previousLogTerm)
+				.setPreviousLogIndex(previousLogIndex)
+				.setBytesToLog(byteString)
+				.build();
+
+		for(String serverId : serverList.getServerIdsList()) {
+			if(serverId.equals(state.ourId())) continue;
+			state.sendMessage(serverId, appendRequest);
+		}
+
+		// record this request as outstanding
+		// (byLsn, byKey, byRequestId)
 	}
 
 

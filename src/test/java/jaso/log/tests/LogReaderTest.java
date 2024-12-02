@@ -6,12 +6,9 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.protobuf.ByteString;
-
-import jaso.log.CrcHelper;
 import jaso.log.persist.LogReader;
 import jaso.log.persist.LogWriter;
-import jaso.log.protocol.LogEvent;
+import jaso.log.protocol.LogEntry;
 
 public class LogReaderTest {
 
@@ -22,9 +19,8 @@ public class LogReaderTest {
 		
 		for(long lsn=148 ; lsn<152; lsn++) {
 			String key = "key-"+lsn;
-			String payload = "payload-"+lsn;
 			String requestId = UUID.randomUUID().toString();
-			LogEvent le =CrcHelper.constructLogEvent(lsn, key, payload, requestId);
+			LogEntry le = MakeLogEntry.makeLogEntry(lsn, key, requestId);
 			lw.append(le);
 			System.out.println(le);
 		}
@@ -32,11 +28,11 @@ public class LogReaderTest {
 		lw.store();
 		
 		LogReader logReader = new LogReader(testPartitonName, 150);
-		LogEvent le = logReader.next();
+		LogEntry le = logReader.next();
 		
 		Assert.assertNotNull(le);
 		Assert.assertEquals(150, le.getLsn());
-		Assert.assertEquals(ByteString.copyFromUtf8("key-"+150), le.getKey());
+		Assert.assertEquals("key-150", le.getLogData().getKey());
 	}
 	
 	@Test
@@ -46,16 +42,15 @@ public class LogReaderTest {
 		
 		for(long lsn=100 ; lsn<200; lsn++) {
 			String key = "key-"+lsn;
-			String payload = "payload-"+lsn;
 			String requestId = UUID.randomUUID().toString();
-			LogEvent le = CrcHelper.constructLogEvent(lsn, key, payload, requestId);
+			LogEntry le = MakeLogEntry.makeLogEntry(lsn, key, requestId);
 			lw.append(le);
 		}
 		
 		lw.store();
 		
 		LogReader logReader = new LogReader(testPartitonName, 300);
-		LogEvent le = logReader.next();
+		LogEntry le = logReader.next();
 		
 		Assert.assertNull(le);
 	}

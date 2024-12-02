@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class LogConstants {
-	public static final String PROFILE_NAME = "JasoLog";
+	public static final String PROFILE_NAME = "jaso-log-profile";
 	public static final String REGION_NAME = "us-east-2";
 	public static final String BUCKET_NAME = "jaso-log";
 	public static final Path CACHING_DIR = Paths.get("/Users/jaso/logCaching");
@@ -22,4 +22,5 @@ public class LogConstants {
 	
 	public static final String LAST_VOTE_FILE_NAME = "lastVote";
 	public static final String LAST_VOTE_NEW_FILE_NAME = "lastVoteNew";
+	public static final String CURRENT_LOG_FILE_NAME = "current.log";
 }

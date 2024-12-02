@@ -4,7 +4,6 @@ package jaso.log;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +17,6 @@ import org.apache.logging.log4j.core.config.Configurator;
 
 import com.google.protobuf.ByteString;
 
-import jaso.log.protocol.EndPoint;
 import jaso.log.protocol.LogPartition;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
@@ -97,7 +95,7 @@ public class DdbDataStore {
 	public static final ByteBuffer emptyByteBuffer = ByteBuffer.wrap(new byte[0]);
 	public static final byte[] emptyByteArray = new byte[0];
 	public static final Set<String> emptyStringSet = new HashSet<String>();
-	public static final Collection<EndPoint> emptyEndPointList = new ArrayList<>();
+//	public static final Collection<EndPoint> emptyEndPointList = new ArrayList<>();
 	
 	public final DynamoDbClient client;
 	
@@ -602,7 +600,7 @@ public class DdbDataStore {
         return builder.build();
   	}
   	
-  	
+/*  	
   	
   	public Collection<EndPoint> findEndPoints(String partitionId, int numberToReturn) {
 
@@ -662,7 +660,7 @@ public class DdbDataStore {
         log.info("Store EndPoint:" + endPoint);
 	}
 
-
+*/
   	
 	public static void main(String[] args) {
 		

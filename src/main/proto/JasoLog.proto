@@ -8,6 +8,130 @@ option objc_class_prefix = "JL";
 
 package JasoLog;
 
+
+
+
+
+/**************************** Key/Value store interface ****************************/
+
+message DB_attribute {
+	string key = 1;
+	string value = 2;
+}
+
+message DB_item {
+    repeated DB_attribute attributes = 12;
+}
+
+enum Action {
+	WRITE = 0;
+	DELETE = 1;
+}
+
+message DB_row {
+	int64 lsn = 1;
+	Action action = 2;
+	DB_item item = 3;
+}
+     
+message DB_delete {
+	string partition_id = 10;
+	string request_id = 11;
+	string table = 1;
+	string key = 2;
+}
+
+message DB_insert {
+	string partition_id = 10;
+	string request_id = 11;
+	string table = 1;
+	string key = 2;
+	DB_item value = 3;
+}
+
+message DB_read {
+	string partition_id = 10;
+	string request_id = 11;
+	string table = 1;
+	string key = 2;
+	repeated string fields = 3;
+}
+
+message DB_scan {
+	string partition_id = 10;
+	string request_id = 11;
+	string table = 1;
+	string start_key = 2;
+	int32 record_count = 3;
+	repeated string fields = 4;
+}
+	
+message DB_update {
+	string partition_id = 10;
+	string request_id = 11;
+	string table = 1;
+	string key = 2;
+	DB_item value = 3;
+}
+
+message DB_status {
+	string request_id = 11;
+	string status = 1;
+}
+
+message DB_result {
+	string request_id = 11;
+	string status = 1;
+	repeated DB_item value = 2;
+}
+
+
+service DatabaseService {
+    rpc delete (DB_delete) returns (DB_status);
+    rpc insert (DB_insert) returns (DB_status);
+    rpc update (DB_update) returns (DB_status);
+
+    rpc read (DB_read) returns (DB_result);
+    rpc scan (DB_scan) returns (DB_result);
+}
+
+
+
+
+message LogData {
+    string key = 1;
+    Action action = 2;
+    DB_item item = 3;
+    string request_id = 4;
+}
+
+
+/* just a place holder for other log entries */
+message SystemEntry {
+	int32 entry_checksum = 6;
+}
+
+
+/* these are the things that are actually written to the log */
+message LogEntry {
+    oneof entry_type {
+    	LogData log_data = 1;
+    	SystemEntry system_entry = 2;
+    }
+    
+    int64 lsn = 11;
+    int64 time = 12;
+}
+
+
+
+	
+
+
+
+/*********************** Server Message Stuff ***********************/
+
+
 /* stuff for a raft prototype only */
 
 message LastVoteInfo {
@@ -22,17 +146,6 @@ message ServerList {
 }
 
 
-message Message {
-    oneof message_type {
-    	HelloRequest hello_request = 10;
-    	HelloResult hello_result = 11;
-    	
-        AppendRequest append_request = 1;
-        AppendResult append_result = 2;
-        VoteRequest vote_request = 3;
-        VoteResult vote_result = 4;
-     }
-}
 
 message HelloRequest {
 	string serverId = 1;
@@ -43,17 +156,14 @@ message HelloResult {
 }
 
 
-	
-
 message AppendRequest {
-    string partition_id = 10;
-    int64 term = 1;
-    string leader = 2;
-    int64 previous_log_id = 3;
+    string partition_id = 1;
+    string leader_id = 2;
+    int64 current_term = 3;
     int64 previous_term = 4;
-    repeated string entries = 5;
-    int64 leader_commit = 6;
-	string payload = 7;
+    int64 previous_log_index = 5;
+    int64 commit_index = 6;
+    bytes bytes_to_log = 7;
 }	
 
 message AppendResult {
@@ -76,7 +186,61 @@ message VoteResult {
     bool vote_granted = 3;
 } 
 
+message PeerMessage {
+    oneof message_type {
+    	HelloRequest hello_request = 10;
+    	HelloResult hello_result = 11;
+    	
+        AppendRequest append_request = 1;
+        AppendResult append_result = 2;
+        VoteRequest vote_request = 3;
+        VoteResult vote_result = 4;
+     }
+}
 
+
+
+
+/*********************** Client Stuff ***********************/
+
+
+message LogRequest {
+	string partition_id = 1;
+	LogData log_data = 2;
+    optional int64 minLsn = 3;
+}
+
+enum Status {
+	OK = 0;
+	NOT_LEADER = 1;
+	UNKNOWN_PARTITION = 2;
+	ERROR = 3;
+}	
+
+message Logged {
+	string request_id = 1;
+	Status status = 2;
+}
+
+
+message ClientRequest {
+	oneof client_request_type {
+		LogRequest log_request = 1;
+        SubscribeRequest subscribe_request = 2;
+        SplitRequest split_request = 3;
+	}
+}
+
+
+message ClientResponse {
+	oneof client_response_type {
+		Logged logged = 1;
+		LogEntry log_entry = 2;
+	}
+}
+
+
+/*********************** Regular RPC commands for the Log Server ***********************/
 
 message CreatePartitionRequest {
 	string partition_id = 1;
@@ -89,56 +253,20 @@ message CreatePartitionResult {
 	optional string message =3;
 }
 
-
       
-service RaftService {
-	rpc CreatePartition (CreatePartitionRequest) returns (CreatePartitionResult);
-    rpc onMessage(stream Message) returns (stream Message) {}
-}
+service LogService {
+	/* the rpc messages exchanged among the Raft servers */
+    rpc onPeerMessage(stream PeerMessage) returns (stream PeerMessage);
     
-message SetPeersRequest {
-	repeated EndPoint end_points = 1;
+    /* the rpc interface that client use to talk to the LogServer */
+    rpc onClientMessage(stream ClientRequest) returns (stream ClientResponse);
+      
+    /* the classic rpc calls that can be made to the log service */
+    rpc CreatePartition (CreatePartitionRequest) returns (CreatePartitionResult);
+    
 }
 
-message SetPeersResult {
-	bool success = 1;
-}
-
-
-/*
-    Log Registry Service
-    Maps a names log to discovery service.
-    The registry could be a public service that simply
-    maps a name to a list of endpoints of a log discovery 
-    service.  For now we will just hard code the location 
-    of the log discovery service
-*/
-
-/*
-    Log Discovery Service
-    This service is used to find log servers hosting
-    partitions of the log. When a server first attaches
-    to a log it can ask for the log server hosting the 
-    partition for the empty string.  This can be the starting 
-    point for learning about the structure of the log.  
-*/
-service LogDiscoveryService {
-    rpc find(FindPartitionRequest) returns (LogPartition) {}
-    rpc update(LogPartition) returns (LogPartition) {}
-}
-
-message FindPartitionRequest {
-  string logId = 1;
-  bytes key = 2;
-}
-
-message EndPoint {
-	string partition_id = 1;
-	string server_id = 2;
-	string host_address = 3;
-	int32 host_port = 4;
-	bool leader_hint = 5;
-}
+ 
 
 message LogPartition {
     string log_id = 1;
@@ -155,32 +283,6 @@ message LogPartition {
 
 
 
-/*
-    LogService
-    The Log Service is the API provided to log clients which
-    allows the client to make log requests and to receive a
-    stream of log events from the log servers.
-*/
-service LogService {
-}
-
-
-message Request {
-    oneof request_type {
-        LogRequest log_request = 1;
-        SubscribeRequest subscribe_request = 2;
-        SplitRequest split_request = 3;
-    }
-}
-
-
-message LogRequest {
-    bytes key = 1;
-    bytes value = 2;
-    bytes requestId = 3;
-    optional int64 minLsn = 4;
-}
-
 message SubscribeRequest {
 }   
    
@@ -190,46 +292,7 @@ message SplitRequest {
     string split = 2;
 }
 
-message Event {
-    oneof event_type {
-        LogEvent log_event = 1;
-        Duplicate duplicate_event = 2;
-        TooLate too_late_event = 3;
-        Conflict conflict_event = 4;
-        Accepted accepted_event = 5;
-        SplitEvent split_event = 10;
-    }
-}
 
-message LogEvent {
-    int64 lsn = 1;
-    bytes key = 2;
-    bytes value = 3;
-    bytes request_id = 4;
-    int32 kvr_checksum = 5;
-    int32 checksum = 6;
-}
-
-message Duplicate {
-    bytes requestId = 1;
-    int64 lsn = 2;
-}
-
-message TooLate {
-    bytes requestId = 1;
-    int64 minLsn = 2;
-    int64 nextLsn = 3;
-}
-
-message Conflict {
-    bytes requestId = 1;
-    int64 existingLsn = 2;
-}
-
-message Accepted {
-    bytes requestId = 1;
-    int64 lsn = 2;
-}
 
 
 message SplitEvent {
@@ -250,8 +313,8 @@ message QueryRequest {
 
 message QueryResponse {
     string key = 1;
-    string value = 2;
-    
-    
+    string value = 2; 
 }
+
+
 

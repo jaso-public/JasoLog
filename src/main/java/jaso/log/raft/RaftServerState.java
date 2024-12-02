@@ -7,7 +7,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import jaso.log.protocol.Message;
+import jaso.log.protocol.AppendRequest;
+import jaso.log.protocol.AppendResult;
+import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.ServerList;
 import jaso.log.protocol.VoteRequest;
 import jaso.log.protocol.VoteResult;
@@ -70,13 +72,14 @@ public class RaftServerState {
 		if(serverList.getServerIdsList().contains(context.getServerId().id)) {
 			log.info("add partition request for partitionId:"+partitionId);
 		} else {
-			log.info("add partition request for partitionId:"+partitionId+" but our serverId:"+context.getServerId().id+" is not included");		
+			log.info("add partition request for partitionId:"+partitionId+" but our serverId:"+ourId()+" is not included");		
 			return;
 		}
 		
 		Partition partition = partitions.get(partitionId);
 		if(partition != null) {
-			throw new RuntimeException();
+			log.error("Partition already exists:"+partitionId+", ignoring request");
+			return;
 		}
 		
 		partition = Partition.createPartition(this, partitionId, serverList);
@@ -88,7 +91,8 @@ public class RaftServerState {
 	public synchronized void openPartition(String partitionId) throws IOException {
 		Partition partition = partitions.get(partitionId);
 		if(partition != null) {
-			throw new RuntimeException();
+			log.error("Partition already opened (or created):"+partitionId+", ignoring request");
+			return;
 		}
 		
 		partition = Partition.openPartition(this, partitionId);
@@ -130,15 +134,25 @@ public class RaftServerState {
 		}		
 	}
 
+	
 	public void sendMessage(String peerId, VoteRequest message) {
-		sendMessage(peerId, Message.newBuilder().setVoteRequest(message).build());
+		sendMessage(peerId, PeerMessage.newBuilder().setVoteRequest(message).build());
 	}
 
 	public void sendMessage(String peerId, VoteResult message) {
-		sendMessage(peerId, Message.newBuilder().setVoteResult(message).build());
+		sendMessage(peerId, PeerMessage.newBuilder().setVoteResult(message).build());
 	}
+	
+	public void sendMessage(String peerId, AppendRequest message) {
+		sendMessage(peerId, PeerMessage.newBuilder().setAppendRequest(message).build());
+	}
+	
+	public void sendMessage(String peerId, AppendResult message) {
+		sendMessage(peerId, PeerMessage.newBuilder().setAppendResult(message).build());
+	}
+	
 
-	public void sendMessage(String peerId, Message message) {
+	public void sendMessage(String peerId, PeerMessage message) {
 		PeerServer peerServer = peers.get(peerId);
 		if(peerServer == null) {
 			if(peerId.equals(ourId())) {
@@ -150,6 +164,8 @@ public class RaftServerState {
 		}
 		peerServer.connection.send(message);		
 	}
+
+
 
 
 }
