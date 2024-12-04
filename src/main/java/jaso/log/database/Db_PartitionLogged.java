@@ -5,8 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,7 +26,6 @@ import jaso.log.protocol.DB_row;
 import jaso.log.protocol.DB_scan;
 import jaso.log.protocol.DB_status;
 import jaso.log.protocol.DB_update;
-import jaso.log.protocol.Status;
 
 public class Db_PartitionLogged implements Db_Partition {
 	private static Logger log = LogManager.getLogger(Db_PartitionLogged.class);
@@ -45,32 +42,6 @@ public class Db_PartitionLogged implements Db_Partition {
 	private final Db_LogPublisher publisher;
 
 	
-	class MyCallback implements Db_LogCallback {
-		private CountDownLatch latch = new CountDownLatch(1);
-		private Status status = Status.ERROR;
-
-		@Override
-		public void handle(Status status) {
-			this.status = status;
-			latch.countDown();			
-		}
-
-		public Status getStatus() {
-			return status;
-		}
-
-		public void await() {
-			try {
-				if(! latch.await(100, TimeUnit.SECONDS)) {
-					System.err.println("Never received the callback");
-				}
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}
-
 	public Db_PartitionLogged(String dbPath) throws IOException, RocksDBException {
     	log.info("Db_Partition starting, path:"+dbPath);
     	  	    	
@@ -94,7 +65,7 @@ public class Db_PartitionLogged implements Db_Partition {
         publisher.send(key, Action.DELETE, emptyItem, callback);
         callback.await();
      
-        return DB_status.newBuilder().setStatus(callback.status.toString()).build();
+        return DB_status.newBuilder().setStatus(callback.getStatusAsString()).build();
     }
     
     
@@ -106,7 +77,7 @@ public class Db_PartitionLogged implements Db_Partition {
         publisher.send(key, Action.WRITE, params.getValue(), callback);
         callback.await();
      
-        return DB_status.newBuilder().setStatus(callback.status.toString()).build();
+        return DB_status.newBuilder().setStatus(callback.getStatusAsString()).build();
     }
 
     
@@ -133,7 +104,7 @@ public class Db_PartitionLogged implements Db_Partition {
 	                publisher.send(key, Action.WRITE, modifiedItem, callback);
 	                callback.await();
 	             
-	                status = callback.status.toString();
+	                status = callback.getStatusAsString();
         		}
         	} else {
         		status = "NOT_FOUND";

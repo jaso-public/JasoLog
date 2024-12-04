@@ -15,4 +15,13 @@ public class RaftConfiguration {
 		
 	}
 
+	public long getHistoryMillis() {
+		return 5000;
+	}
+	
+	public long getHistoryCount() {
+		return 2000;
+	}
+
+
 }

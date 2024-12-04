@@ -5,7 +5,7 @@ import java.util.Map;
 
 
 
-public class PartHistory {
+public class PartitionHistory {
 	
 	private static class LogEntryMetadata {
 		long lsn;
@@ -25,7 +25,7 @@ public class PartHistory {
 
 	
 	private final long maxAge;
-	private final int maxEntries;
+	private final long maxEntries;
 	
 	
 	private Map<byte[], LogEntryMetadata> byKey = new HashMap<>();
@@ -35,7 +35,7 @@ public class PartHistory {
 	private int count = 0;
 	
 	
-	public PartHistory(long maxAge, int maxEntries) {
+	public PartitionHistory(long maxAge, long maxEntries) {
 		this.maxAge = maxAge;
 		this.maxEntries = maxEntries;
 	}
@@ -65,13 +65,19 @@ public class PartHistory {
 		if(head == null) tail = null;
 	}
 	
-	public synchronized boolean isDuplicate(String rid) {
-		return byRid.containsKey(rid); 
+	public synchronized long isDuplicate(String rid) {
+		LogEntryMetadata lem = byRid.get(rid); 
+		if(lem == null) return -1;
+		return lem.lsn;
 	}
 
-	public synchronized long getLastLsn(byte[] key) {
-		LogEntryMetadata lem = byKey.get(key);
-		if(lem != null) return lem.lsn;
+	public synchronized long getKeyLsn(byte[] key) {
+		LogEntryMetadata lem = byKey.get(key); 
+		if(lem == null) return -1;
+		return lem.lsn;
+	}
+
+	public synchronized long getEarliestKnownLsn() {
 		if(head == null) return 0;
 		return head.lsn;
 	}

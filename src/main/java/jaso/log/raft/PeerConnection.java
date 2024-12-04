@@ -15,6 +15,27 @@ import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.PeerMessage.MessageTypeCase;
 
 
+/**
+ * A PeerConnection is a gRPC connection to another log server where a Hello
+ * Request/Response has been exchanged.  This exchange guarantees that we 
+ * know which server is at the other end of the connection and that we are
+ * willing to send messages to that Peer.  This is different from a 
+ * ServerConnection which is the other end of the PeerConnection.  The
+ * PeerConnection is the end connecting to the server, the ServerConnection
+ * is the end that is accepted by the server. 
+ * 
+ * A PeerConnection is created to communicate with a specifis peer ServerId.
+ * The Peer Connection will send a HelloRequest to the other end of the socket
+ * which should respond with a HelloResponse.  If the serverId in the response
+ * message is not the expected serverId, the connection is closed and a new
+ * connection is attempted.  
+ *
+ * A Peer connection will attempt to keep a connection open as long as the connection
+ * is needed (the two server belong to the same raft group).  So if the onError or
+ * onCompleted are ever called (via the gRPC callback mechanisms) the PeerConnection
+ * will attempt to reestablish the connection.
+ *   
+ */
 public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.Handler {
 	private static Logger log = LogManager.getLogger(PeerConnection.class);
 
@@ -28,8 +49,7 @@ public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.H
 	private final String peerServerId;
 	private long connectAlarmId = -1;
 	private boolean connectedAndVerified = false;
-	
-	
+		
 	
 	public PeerConnection(RaftServerState state, String peerServerId) {
 		String ourId = state.getContext().getServerId().id;
@@ -57,7 +77,6 @@ public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.H
 	    channel = ManagedChannelBuilder.forTarget(peerAddress).usePlaintext().build();
 	    asyncStub = LogServiceGrpc.newStub(channel);
 	    observer = asyncStub.onPeerMessage(this);
-
     	
 	    String ourId = state.getContext().getServerId().id;
 		HelloRequest hello = HelloRequest.newBuilder().setServerId(ourId).build();

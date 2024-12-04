@@ -6,6 +6,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,13 +24,17 @@ import jaso.log.protocol.LastVoteInfo;
 import jaso.log.protocol.LogData;
 import jaso.log.protocol.LogEntry;
 import jaso.log.protocol.LogRequest;
+import jaso.log.protocol.Logged;
 import jaso.log.protocol.ServerList;
+import jaso.log.protocol.Status;
 import jaso.log.protocol.VoteRequest;
 import jaso.log.protocol.VoteResult;
 
 public class Partition implements AlarmClock.Handler {
 	private static Logger log = LogManager.getLogger(Partition.class);
 	private static Random rng = new Random();
+
+	private final PartitionHistory history;
 
 	final RaftServerState state;
 	final String partitionId;
@@ -48,7 +54,8 @@ public class Partition implements AlarmClock.Handler {
 
 	long timerId = 0;
 	
-	RandomAccessFile raf = null;
+	private RandomAccessFile raf = null;
+	private long currentFileStartOffset = 0;
 	
 	
 	public Partition(RaftServerState state, String partitionId, File partitionPath, ServerList serverList) throws IOException {
@@ -61,6 +68,9 @@ public class Partition implements AlarmClock.Handler {
 		
 		File currentFile = new File(partitionPath, LogConstants.CURRENT_LOG_FILE_NAME);
 		raf = new RandomAccessFile(currentFile, "rw");
+		
+		RaftConfiguration cfg = state.getContext().getCfg();
+		history = new PartitionHistory(cfg.getHistoryMillis(), cfg.getHistoryCount());		
 	}
 
 
@@ -110,6 +120,7 @@ public class Partition implements AlarmClock.Handler {
 		
 		return new Partition(state, partitionId, partitionDir, serverList);
 	}
+	
 	
 	public void writeVote(String candidate, long term) throws FileNotFoundException, IOException {
 		lastVoteInfo = LastVoteInfo.newBuilder()
@@ -308,29 +319,52 @@ public class Partition implements AlarmClock.Handler {
 		}
 		
 		// check for duplicates
+		long existingLsn = history.isDuplicate(requestId);
+		if(existingLsn >= 0) {
+			log.warn("duplicate requestId:"+requestId);
+			
+			//TODO: make sure this duplicate is the same as the entry in the log
+			
+			sendLogged(observer, requestId, Status.OK, existingLsn);
+			return;
+		}
 		
 		// check LSN
+		byte[] key = logData.getKey().getBytes(StandardCharsets.UTF_8);
+		if(logRequest.hasMinLsn()) {
+			long expectedLsn = logRequest.getMinLsn();
+			long lastLsnForKey = history.getKeyLsn(key);
+			if(lastLsnForKey < 0) {
+				long earliest = history.getEarliestKnownLsn();
+				if(expectedLsn<earliest) {
+					sendLogged(observer, requestId, Status.TOO_LATE, earliest);
+					return;	
+				}				
+			} else {
+				if(lastLsnForKey != expectedLsn) {
+					sendLogged(observer, requestId, Status.UNEXPECTED_LSN, lastLsnForKey);
+					return;		
+				}
+			}
+		}
+		
 		
 		// check that the key is in the partitions range
 		
 		// seems like it is GTG assign lsn and append at the peers.
 		
 		
-		ByteString byteString = null;
+		byte[] bytesToLog = null;
+		long thisLsn = nextLsn;
 		synchronized(this) {
-//			CRC32C crc = new CRC32C();
-//			CrcHelper.updateLong(crc, dataChecksum, nextLsn, currentTerm, previousLogIndex+1);
-//			int entryChecksum = (int) crc.getValue();
 			
 			LogEntry logEntry = LogEntry.newBuilder()
 					.setLogData(logData)
-					.setLsn(nextLsn)
+					.setLsn(thisLsn)
 					.setTime(System.currentTimeMillis())	
-//					.setChecksum(entryChecksum)
 					.build();
 			
-			byte[] bytesToLog = logEntry.toByteArray();
-			byteString = ByteString.copyFrom(bytesToLog);
+			bytesToLog = logEntry.toByteArray();
 			
 			// now is a good time to verify the checksums
 			nextLsn += bytesToLog.length + Integer.BYTES;
@@ -338,17 +372,25 @@ public class Partition implements AlarmClock.Handler {
 			previousLogTerm = currentTerm;			
 		}
 		
+		try {
+			append(bytesToLog, thisLsn);
+		} catch (Exception e) {
+			// TODO do something better than quitting
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
 		AppendRequest appendRequest = AppendRequest.newBuilder()
 				.setPartitionId(partitionId)
 				.setLeaderId(state.ourId())
 				.setPreviousTerm(previousLogTerm)
 				.setPreviousLogIndex(previousLogIndex)
-				.setBytesToLog(byteString)
+				.setBytesToLog(ByteString.copyFrom(bytesToLog))
 				.build();
 
 		for(String serverId : serverList.getServerIdsList()) {
 			if(serverId.equals(state.ourId())) continue;
-			state.sendMessage(serverId, appendRequest);
+//			state.sendMessage(serverId, appendRequest);
 		}
 
 		// record this request as outstanding
@@ -356,8 +398,28 @@ public class Partition implements AlarmClock.Handler {
 	}
 
 
+	public void append(byte[] bytesToLog, long lsn) throws IOException {
+		byte[] bytes = new byte[4];
+		ByteBuffer buffer = ByteBuffer.wrap(bytes);
+		buffer.putInt(bytesToLog.length);
+		long offset = lsn - currentFileStartOffset;
+		buffer.clear();
+		raf.getChannel().write(buffer, offset);
+		buffer = ByteBuffer.wrap(bytesToLog);
+		raf.getChannel().write(buffer, offset + Integer.BYTES);	
+	}
 
 
+	
+	private void sendLogged(StreamObserver<ClientResponse> observer, String requestId, Status status, long lsn) {
+		Logged logged = Logged.newBuilder()
+				.setRequestId(requestId)
+				.setStatus(status)
+				.setLsn(lsn)
+				.build();
+		
+		observer.onNext(ClientResponse.newBuilder().setLogged(logged).build());
+	}
 
 
 }

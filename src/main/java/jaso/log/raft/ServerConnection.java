@@ -12,7 +12,23 @@ import jaso.log.protocol.PeerMessage.MessageTypeCase;
 import jaso.log.protocol.VoteRequest;
 import jaso.log.protocol.VoteResult;
 
-
+/**
+ * A ServerConnection is the accepted end of the socket connection.
+ * We don't really care who is sending us messages, we expect the
+ * other end of the connection (see PeerConnection) to have checked
+ * that they are sending messages to the correct server.  This
+ * ServerConnection will process the messages as they are received.
+ * The ServerConnection does not manage the connection in any way,
+ * it is the responsibility of the PeerConnection to close the
+ * connection when it is no longer needed. 
+ * 
+ * Note: There will almost always be a pair of sockets connecting 
+ * each pair of servers.  One PeerConnection and a ServerConnection.
+ * Once established and Hello messages are exchanged, the server 
+ * will always use the PeerConnection to send messages and they
+ * will be received on the ServerConnection.  
+ * 
+ */
 public class ServerConnection implements StreamObserver<PeerMessage> {
 	private static Logger log = LogManager.getLogger(ServerConnection.class);
 
@@ -117,6 +133,7 @@ public class ServerConnection implements StreamObserver<PeerMessage> {
 				log.warn("Unknown partition -- Received:"+ mtc+" peerServerId:"+peerServerId+" partitionId:"+partitionId);
 			}
 			break;
+			
 		case MESSAGETYPE_NOT_SET:
 			log.error("MessageType was not set! peerServerId:"+peerServerId);
 			return;

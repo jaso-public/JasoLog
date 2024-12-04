@@ -22,26 +22,6 @@ public class Db_LogPublisher {
 	
 	private final ConcurrentHashMap<String,Db_LogCallback> callbacks = new ConcurrentHashMap<>();
 	
-//	private final BlockingQueue<ClientRequest> queue = new ArrayBlockingQueue<ClientRequest>(100);
-//	
-//	class Queuer implements Runnable {
-//
-//		@Override
-//		public void run() {
-//			while(true) {
-//				try {
-//					ClientRequest clientRequest = queue.take();
-//					System.out.println("sending:"+clientRequest);
-//					requestObserver.onNext(clientRequest);
-//				} catch (InterruptedException e) {
-//					// TODO Auto-generated catch block
-//					e.printStackTrace();
-//				}
-//				
-//			}			
-//		}		
-//	}
-	
 	
 	public Db_LogPublisher() {
 		
@@ -88,8 +68,6 @@ public class Db_LogPublisher {
                 System.out.println("Server has completed sending messages.");
             }
         });
-        
-//        new Thread(new Queuer()).start();
        
  	}
 	

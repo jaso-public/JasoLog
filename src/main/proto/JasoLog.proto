@@ -146,7 +146,6 @@ message ServerList {
 }
 
 
-
 message HelloRequest {
 	string serverId = 1;
 }
@@ -162,8 +161,9 @@ message AppendRequest {
     int64 current_term = 3;
     int64 previous_term = 4;
     int64 previous_log_index = 5;
-    int64 commit_index = 6;
-    bytes bytes_to_log = 7;
+    int64 commit_index = 6;    
+    int64 lsn = 11;
+    bytes bytes_to_log = 12;
 }	
 
 message AppendResult {
@@ -207,19 +207,23 @@ message PeerMessage {
 message LogRequest {
 	string partition_id = 1;
 	LogData log_data = 2;
-    optional int64 minLsn = 3;
+    optional int64 minLsn = 3;  /*change to expectedLsn */
 }
 
 enum Status {
 	OK = 0;
 	NOT_LEADER = 1;
 	UNKNOWN_PARTITION = 2;
-	ERROR = 3;
+	TOO_LATE = 3;
+	UNEXPECTED_LSN = 4;
+	
+	ERROR = 99;
 }	
 
 message Logged {
 	string request_id = 1;
 	Status status = 2;
+	int64 lsn = 3;
 }
 
 
