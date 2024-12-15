@@ -6,6 +6,7 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.stub.StreamObserver;
 import jaso.log.protocol.AppendRequest;
 import jaso.log.protocol.AppendResult;
+import jaso.log.protocol.ExtendRequest;
 import jaso.log.protocol.HelloResult;
 import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.PeerMessage.MessageTypeCase;
@@ -50,7 +51,10 @@ public class ServerConnection implements StreamObserver<PeerMessage> {
 	@Override
     public void onNext(PeerMessage message) {
 		MessageTypeCase mtc = message.getMessageTypeCase();
-        log.info("Received:"+mtc+" peer:"+peerServerId);
+		if(mtc == MessageTypeCase.EXTEND_REQUEST) {
+		} else {
+			log.info("Received:"+mtc+" peer:"+peerServerId);
+		}
 
         if(mtc == MessageTypeCase.HELLO_REQUEST) {
         	if(peerServerId != null) {
@@ -72,14 +76,13 @@ public class ServerConnection implements StreamObserver<PeerMessage> {
         	return;
         }
         
+        // we don't want to see any messages on this connection until we know who is at the other end
         if(peerServerId == null) {
         	log.error("Received message, MessageTypeCase:" + mtc + " from a peer that never sent a HelloRequest. clientAddress:"+clientAddress);
         	observer.onCompleted();
         	return;
         }
                
-        log.info("Received:"+ mtc+" peerServerId:"+peerServerId);
-
         String partitionId;
         Partition partition;
         
@@ -133,6 +136,19 @@ public class ServerConnection implements StreamObserver<PeerMessage> {
 				log.warn("Unknown partition -- Received:"+ mtc+" peerServerId:"+peerServerId+" partitionId:"+partitionId);
 			}
 			break;
+			
+		// TODO remove
+		case EXTEND_REQUEST:
+			ExtendRequest extendeRequest = message.getExtendRequest();
+			partitionId = extendeRequest.getPartitionId();
+			partition = state.getPartition(partitionId);
+			if(partition != null) {
+				partition.extendRequest(peerServerId, extendeRequest);
+			} else {
+				log.warn("Unknown partition -- Received:"+ mtc+" peerServerId:"+peerServerId+" partitionId:"+partitionId);
+			}
+			break;
+
 			
 		case MESSAGETYPE_NOT_SET:
 			log.error("MessageType was not set! peerServerId:"+peerServerId);

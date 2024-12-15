@@ -3,19 +3,26 @@ package jaso.log.raft;
 import java.util.HashMap;
 import java.util.Map;
 
+import jaso.log.protocol.Logged;
+import jaso.log.protocol.Status;
+
 
 
 public class PartitionHistory {
 	
 	private static class LogEntryMetadata {
-		long lsn;
-		byte[] key;
-		String rid;
-		long millis;
+		final long currLsn;
+		final long prevLsn;
+		final long prevSeq;
+		final byte[] key;
+		final String rid;
+		final long millis;
 		LogEntryMetadata next;
 		
-		public LogEntryMetadata(long lsn, byte[] key, String rid, long millis, LogEntryMetadata next) {
-			this.lsn = lsn;
+		public LogEntryMetadata(long newLsn, long prevLsn, long prevSeq, byte[] key, String rid, long millis, LogEntryMetadata next) {
+			this.currLsn = newLsn;
+			this.prevLsn = prevLsn;
+			this.prevSeq = prevSeq;
 			this.key = key;
 			this.rid = rid;
 			this.millis = millis;
@@ -39,9 +46,62 @@ public class PartitionHistory {
 		this.maxAge = maxAge;
 		this.maxEntries = maxEntries;
 	}
+	
+	private Logged okToAdd(byte[] key, String rid, long prevLsn, long prevSeq) {
+		
+		LogEntryMetadata lem = byRid.get(rid); 
+		if(lem != null) {
+			return Logged.newBuilder()
+					.setRequestId(rid)
+					.setStatus(Status.OK)
+					.setLsn(lem.currLsn)
+					.build();
+		}
 
-	public synchronized void add(long lsn, byte[] key, String rid, long millis) {
-		LogEntryMetadata lem = new LogEntryMetadata(lsn, key, rid, millis, tail);
+		// does the caller does care about sequencing
+		if(prevLsn == 0 ) return null;
+
+		
+		lem = byKey.get(key);
+		
+		// do we know about this key?
+		if(lem == null) {
+		 	if(prevLsn >= getEarliestKnownLsn())  return null;
+		 	
+			return Logged.newBuilder()
+					.setRequestId(rid)
+					.setStatus(Status.TOO_LATE)
+					.setLsn(getEarliestKnownLsn())
+					.build();
+		}
+		
+		if(prevSeq != 0) {
+			if(prevLsn == lem.prevLsn && prevSeq == lem.prevSeq) return null;
+			
+			return Logged.newBuilder()
+					.setRequestId(rid)
+					.setStatus(Status.UNEXPECTED_LSN)
+					.setLsn(lem.currLsn)
+					.build();				
+		}
+		
+		if(prevLsn == lem.currLsn) return null;
+		
+		return Logged.newBuilder()
+				.setRequestId(rid)
+				.setStatus(Status.UNEXPECTED_LSN)
+				.setLsn(lem.currLsn)
+				.build();				
+	}
+	
+
+	public Logged maybeAdd(long newLsn, long prevLsn, long prevSeq, byte[] key, String rid, long millis) {
+		
+		Logged result = okToAdd(key, rid, prevLsn, prevSeq);
+		if(result != null) return result;
+
+		
+		LogEntryMetadata lem = new LogEntryMetadata(newLsn, prevLsn, prevSeq, key, rid, millis, tail);
 		tail = lem;
 		if(head == null) head = lem;
 		byKey.put(key, lem);
@@ -50,7 +110,7 @@ public class PartitionHistory {
 		
 		long now = System.currentTimeMillis();
 		while(head != null) {
-			if(count < maxEntries && now - head.millis < maxAge) return;
+			if(count < maxEntries && now - head.millis < maxAge) return null;
 			lem = head;
 			head = lem.next;
 			if(byKey.get(lem.key) == lem) {
@@ -61,24 +121,15 @@ public class PartitionHistory {
 			}			
 		}
 		
-		// head should always be null
+		// head should always be null, because this list is now empty
 		if(head == null) tail = null;
+		return null;
 	}
 	
-	public synchronized long isDuplicate(String rid) {
-		LogEntryMetadata lem = byRid.get(rid); 
-		if(lem == null) return -1;
-		return lem.lsn;
-	}
 
-	public synchronized long getKeyLsn(byte[] key) {
-		LogEntryMetadata lem = byKey.get(key); 
-		if(lem == null) return -1;
-		return lem.lsn;
-	}
-
-	public synchronized long getEarliestKnownLsn() {
+	
+	private long getEarliestKnownLsn() {
 		if(head == null) return 0;
-		return head.lsn;
+		return head.currLsn;
 	}
 }

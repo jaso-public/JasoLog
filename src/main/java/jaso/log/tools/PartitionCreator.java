@@ -67,7 +67,8 @@ public class PartitionCreator {
 		}
 
 	}
-		public static void main(String[] args) throws IOException {
+		
+	public static void main(String[] args) throws IOException {
 		
 		Configurator.setRootLevel(Level.INFO);	
 		PartitionCreator pc = new PartitionCreator();

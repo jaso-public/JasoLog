@@ -2,6 +2,10 @@ package jaso.log.raft;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,6 +14,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import jaso.log.LogConstants;
+import jaso.log.NamedThreadFactory;
 import jaso.log.common.ClientAddressInterceptor;
 import jaso.log.protocol.ClientRequest;
 import jaso.log.protocol.ClientResponse;
@@ -18,6 +23,8 @@ import jaso.log.protocol.CreatePartitionResult;
 import jaso.log.protocol.LogServiceGrpc;
 import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.ServerList;
+import jaso.log.protocol.WhoIsLeaderRequest;
+import jaso.log.protocol.WhoIsLeaderResult;
 
 public class RaftServer {
 	private static Logger log = LogManager.getLogger(RaftServer.class);
@@ -37,14 +44,27 @@ public class RaftServer {
     	
     	this.state = new RaftServerState(context);
     	
+     	NamedThreadFactory threadFactory = new NamedThreadFactory(context.getServerId().id+"-grpc");
+    			
+    	ExecutorService threadPool = new ThreadPoolExecutor(
+                5,                     // Core pool size
+                20,                    // Maximum pool size
+                60L, TimeUnit.SECONDS, // Keep-alive time
+                new LinkedBlockingQueue<>(), // Work queue
+                threadFactory          // Custom ThreadFactory
+            );
+
+
         this.server = ServerBuilder
         		.forPort(0)
                 .addService(new RaftServiceImpl())  
                 .intercept(new ClientAddressInterceptor())  
+                .executor(threadPool)
                 .build()
                 .start();
         
         context.getDdbStore().registerServer(context.getServerId().id, context.getIpAddress(), server.getPort());
+        state.port = server.getPort();
         
         // get the list of all the partitions that this server believes it is hosting
         // as well as the servers that it believes are the peers.
@@ -128,6 +148,29 @@ public class RaftServer {
             		.setPartitionId(request.getPartitionId())
             		.setSuccess(success)
             		.setMessage(resultMessage)
+                    .build();
+           
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
+        }
+        
+        @Override
+        public void onLeaderQuery(WhoIsLeaderRequest request, StreamObserver<WhoIsLeaderResult> responseObserver) {
+        	String partitionId = request.getPartitionId();
+        
+            log.info("Received WhoIsLeaderRequest for partition: " + partitionId+" clientAddress:"+getClientAddress());
+
+            Partition partition = state.getPartition(partitionId);
+            String leader = "Unknown";
+            if(partition!=null) {
+            	if(partition.leaderId != null) {
+            		leader = partition.leaderId;
+            	}
+            }
+            
+            WhoIsLeaderResult result = WhoIsLeaderResult.newBuilder()
+            		.setPartitionId(partitionId)
+            		.setLeaderId(leader)
                     .build();
            
             responseObserver.onNext(result);

@@ -11,17 +11,21 @@ import jaso.log.protocol.CreatePartitionRequest;
 import jaso.log.protocol.CreatePartitionResult;
 import jaso.log.protocol.LogServiceGrpc;
 import jaso.log.protocol.PeerMessage;
+import jaso.log.raft.ClientConnection;
+import jaso.log.raft.RaftServerState;
 
 
 public class SimpleLogServiceImpl extends LogServiceGrpc.LogServiceImplBase {
 	private static Logger log = LogManager.getLogger(SimpleLogServiceImpl.class);
 	
-	private final SimpleState state;
-
-	public SimpleLogServiceImpl(SimpleState state) {
-		this.state = state;
-	}
+	private final RaftServerState raftState;
 	
+
+	
+	public SimpleLogServiceImpl(RaftServerState state) {
+		raftState = state;
+	}
+
 	
 	private String getClientAddress() {
         // Access the client address from the context
@@ -46,7 +50,8 @@ public class SimpleLogServiceImpl extends LogServiceGrpc.LogServiceImplBase {
     @Override
     public StreamObserver<ClientRequest> onClientMessage(StreamObserver<ClientResponse> responseObserver) {
         log.info("new client connection:"+getClientAddress());
-        return new SimpleClientConnection(state, responseObserver, getClientAddress());
+//        return new SimpleClientConnection(state, responseObserver, getClientAddress());
+        return new ClientConnection(raftState, responseObserver, getClientAddress());
     }
     
     

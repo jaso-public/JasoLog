@@ -30,7 +30,7 @@ public class ClientConnection implements StreamObserver<ClientRequest> {
 	@Override
     public void onNext(ClientRequest message) {
 		ClientRequestTypeCase mtc = message.getClientRequestTypeCase();
-        log.info("Received:"+mtc+" client:"+clientAddress);
+        // log.info("Received:"+mtc+" client:"+clientAddress);
 
 
         String partitionId;

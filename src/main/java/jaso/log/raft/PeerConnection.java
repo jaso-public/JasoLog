@@ -103,7 +103,10 @@ public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.H
 	@Override
     public void onNext(PeerMessage message) {
 		MessageTypeCase mtc = message.getMessageTypeCase();
-        log.info("Received:"+mtc+" peer:"+peerServerId);
+		if(mtc == MessageTypeCase.EXTEND_REQUEST) {
+		} else {
+			log.info("Received:"+mtc+" peer:"+peerServerId);
+		}
         
         if(mtc == MessageTypeCase.HELLO_RESULT ) {
         	String otherPeerId = message.getHelloResult().getServerId();
@@ -156,8 +159,17 @@ public class PeerConnection implements StreamObserver<PeerMessage>, AlarmClock.H
     		return;
     	}
     	
-        log.info("Send: "+message.getMessageTypeCase()+" peerServerId:"+peerServerId);
-	    observer.onNext(message);
+    	MessageTypeCase mtc = message.getMessageTypeCase();
+		if(mtc == MessageTypeCase.EXTEND_REQUEST) {
+			// no logging
+		} else {
+			log.info("Send: "+mtc+" peerServerId:"+peerServerId);
+		}
+		
+		synchronized (observer) {
+			observer.onNext(message);	
+		}
+	    
     }
 
     

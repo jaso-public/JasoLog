@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -53,6 +54,10 @@ public class DdbDataStore {
 	
 	// this table maps server id to the endpoint where it is listening
 	public static final String TABLE_SERVER           = "jaso-log-servers";
+	
+	// this table maps server id to the endpoint where it is listening
+	public static final String TABLE_LEADER           = "jaso-leaders";
+	
 
 	// this table maps human readable names to the uuid of the log
 	public static final String TABLE_LOG_NAME         = "jaso-log-names";
@@ -186,8 +191,17 @@ public class DdbDataStore {
 				.build();
 		
 		client.createTable(request);
-		waitUntilActive(tableName);
-		
+		waitUntilActive(tableName);		
+	}
+	
+	public void createNewLog(String logName, String logId) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        addString(item, ATTRIBUTE_LOG_NAME, logName);
+        addString(item, ATTRIBUTE_LOG_ID, logId);
+        
+        PutItemRequest putItemRequest = PutItemRequest.builder().tableName(TABLE_LOG_NAME).item(item).build();
+        client.putItem(putItemRequest);
+        log.info("created new log logName:" + logName + " logId:" + logId );		
 	}
 		
 
@@ -379,6 +393,72 @@ public class DdbDataStore {
 		client.updateTimeToLive(ttlRequest);
 	}
 	
+	public void createLeaderTable() {
+		String tableName = TABLE_LEADER;
+				
+		
+		// define the attribute types
+		ArrayList<AttributeDefinition> definitions = new ArrayList<>();
+		definitions.add(AttributeDefinition.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.attributeType(ScalarAttributeType.S)
+				.build());
+
+		
+		// define the table schema (hash/sort keys)
+		ArrayList<KeySchemaElement> tableSchema = new ArrayList<>();
+		tableSchema.add(KeySchemaElement.builder()
+				.attributeName(ATTRIBUTE_PARTITION_ID)
+				.keyType(KeyType.HASH)
+				.build());		
+		
+		
+		CreateTableRequest request = CreateTableRequest.builder()
+				.tableName(tableName)
+				.keySchema(tableSchema)
+				.attributeDefinitions(definitions)
+				.billingMode(BillingMode.PAY_PER_REQUEST)
+				.build();
+		
+		client.createTable(request);
+		waitUntilActive(tableName);	
+	}
+
+	public String getLeaderId(String partitionId) {
+		
+        Map<String, AttributeValue> keyToGet = new HashMap<>();
+        addString(keyToGet, ATTRIBUTE_PARTITION_ID, partitionId);
+  
+        // Create the GetItemRequest
+        GetItemRequest request = GetItemRequest.builder()
+                .tableName(TABLE_LEADER)  
+                .key(keyToGet)
+                .build();
+
+        // Execute the GetItem request
+        GetItemResponse response = client.getItem(request);
+        if (!response.hasItem()) {
+        	log.warn("unable to find paritionId:"+partitionId+" in table:"+TABLE_LEADER);
+        	return null;
+        }
+        
+        String serverId = getString(response.item(), ATTRIBUTE_SERVER_ID);
+        log.info("Retrieved paritionId:" + partitionId + " serverId:" + serverId);
+        
+        return serverId;
+	}
+
+	
+	public void registerLeader(String partitionId, String serverId) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        addString(item, ATTRIBUTE_PARTITION_ID, partitionId);
+        addString(item, ATTRIBUTE_SERVER_ID, serverId);
+         
+        PutItemRequest putItemRequest = PutItemRequest.builder().tableName(TABLE_LEADER).item(item).build();
+        client.putItem(putItemRequest);
+        log.info("Stored paritionId:" + partitionId + " serverId:" + serverId);
+	}
+
 	
 	
 	public static void addString(Map<String, AttributeValue> item, String key, String value) {
@@ -667,7 +747,7 @@ public class DdbDataStore {
 		Configurator.setRootLevel(Level.INFO);
 
 		DdbDataStore ddbStore = new DdbDataStore();
-		ddbStore.createServerTable();
+		ddbStore.createLeaderTable();
 //		ddbStore.createLogNameTable();
 //		ddbStore.createPartitionTable();
 //		ddbStore.createEndPointTable();

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 
 import jaso.log.protocol.AppendRequest;
 import jaso.log.protocol.AppendResult;
+import jaso.log.protocol.ExtendRequest;
 import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.ServerList;
 import jaso.log.protocol.VoteRequest;
@@ -22,7 +23,7 @@ public class RaftServerState {
 	private final ConcurrentHashMap<String,Partition> partitions = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String,PeerServer> peers = new ConcurrentHashMap<>();
 	
-	
+	public int port = -1;
 
 	
 	public RaftServerState(RaftServerContext context) {
@@ -72,7 +73,7 @@ public class RaftServerState {
 		if(serverList.getServerIdsList().contains(context.getServerId().id)) {
 			log.info("add partition request for partitionId:"+partitionId);
 		} else {
-			log.info("add partition request for partitionId:"+partitionId+" but our serverId:"+ourId()+" is not included");		
+			log.warn("Did not create partitionId:"+partitionId+", our serverId:"+ourId()+" is not included");		
 			return;
 		}
 		
@@ -97,6 +98,7 @@ public class RaftServerState {
 		
 		partition = Partition.openPartition(this, partitionId);
 		partitions.put(partitionId, partition);
+		log.info("adding partitionId:"+partitionId);
 		connectToPeers(partitionId);		
 	}
 	
@@ -151,6 +153,10 @@ public class RaftServerState {
 		sendMessage(peerId, PeerMessage.newBuilder().setAppendResult(message).build());
 	}
 	
+	public void sendMessage(String peerId, ExtendRequest message) {
+		sendMessage(peerId, PeerMessage.newBuilder().setExtendRequest(message).build());
+	}
+	
 
 	public void sendMessage(String peerId, PeerMessage message) {
 		PeerServer peerServer = peers.get(peerId);
@@ -162,7 +168,11 @@ public class RaftServerState {
 			}
 			return;
 		}
-		peerServer.connection.send(message);		
+		
+		synchronized (peerServer.connection) {
+			peerServer.connection.send(message);		
+		}
+			
 	}
 
 

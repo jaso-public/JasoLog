@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import jaso.log.DdbDataStore;
 import jaso.log.protocol.Action;
 import jaso.log.protocol.ClientRequest;
 import jaso.log.protocol.ClientResponse;
@@ -13,24 +14,35 @@ import jaso.log.protocol.DB_item;
 import jaso.log.protocol.LogData;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
+import jaso.log.protocol.LogServiceGrpc.LogServiceBlockingStub;
 import jaso.log.protocol.Logged;
 import jaso.log.protocol.Status;
+import jaso.log.protocol.WhoIsLeaderRequest;
+import jaso.log.protocol.WhoIsLeaderResult;
 
 public class Db_LogPublisher {
 	
+	private final ManagedChannel channel;
 	private final StreamObserver<ClientRequest> requestObserver;
 	
 	private final ConcurrentHashMap<String,Db_LogCallback> callbacks = new ConcurrentHashMap<>();
 	
 	
+	String partId = "part-33cd368e-4b74-4de4-a498-0faea2990609";
+	
 	public Db_LogPublisher() {
 		
-        // Create a channel to connect to the server
-        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 50051)
-                .usePlaintext()
-                .build();
-
-        // Create a stub to use the service
+		DdbDataStore ddb = new DdbDataStore();
+		String serverId = ddb.getLeaderId(partId);
+		System.out.println("serverId:"+serverId);
+		
+		String address = ddb.getServerAddress(serverId);
+		System.out.println("address:"+address);
+		
+		
+    	channel = ManagedChannelBuilder.forTarget(address).usePlaintext().build();
+        
+         // Create a stub to use the service
         LogServiceGrpc.LogServiceStub asyncStub = LogServiceGrpc.newStub(channel);
 
         // Call the Chat RPC and create a StreamObserver to handle responses
@@ -42,6 +54,7 @@ public class Db_LogPublisher {
 	                case LOGGED:
 	                	Logged logged = response.getLogged();
 	                	String requestId = logged.getRequestId();
+	                	System.out.println("Received:\n"+logged);
 	                	Status status = logged.getStatus();
 	                	Db_LogCallback callback = callbacks.remove(requestId);
 	                	if(callback == null) {
@@ -85,17 +98,25 @@ public class Db_LogPublisher {
     			.build();
     	
     	LogRequest logRequest = LogRequest.newBuilder()
-    			.setPartitionId("part")
+    			.setPartitionId(partId)
     			.setLogData(logData)
-    			.setMinLsn(0)
+    			.setPrevLsn(0)
+    			.setPrevSeq(0)
     			.build();
     	
     	callbacks.put(requestId, callback);
     	
     	ClientRequest clientRequest = ClientRequest.newBuilder().setLogRequest(logRequest).build();
-    	
+    	System.out.println("sending:"+clientRequest);
     	synchronized (requestObserver) {
     		requestObserver.onNext(clientRequest);
 		}
     }
+
+
+	public void close() {
+		requestObserver.onCompleted();
+		channel.shutdown();
+		
+	}
 }
