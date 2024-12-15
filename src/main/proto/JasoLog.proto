@@ -271,16 +271,6 @@ message CreatePartitionResult {
 	bool success = 2;
 	optional string message =3;
 }
-
-message WhoIsLeaderRequest {
-	string partition_id = 1;
-}
-
-message WhoIsLeaderResult {
-	string partition_id = 1;
-	string leader_id = 2;
-}
-
       
 service LogService {
 	/* the rpc messages exchanged among the Raft servers */
@@ -290,10 +280,7 @@ service LogService {
     rpc onClientMessage(stream ClientRequest) returns (stream ClientResponse);
       
     /* the classic rpc calls that can be made to the log service */
-    rpc CreatePartition (CreatePartitionRequest) returns (CreatePartitionResult);
-    
-    rpc onLeaderQuery (WhoIsLeaderRequest) returns (WhoIsLeaderResult);
-    
+    rpc CreatePartition (CreatePartitionRequest) returns (CreatePartitionResult);    
 }
 
  

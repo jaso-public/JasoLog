@@ -14,11 +14,8 @@ import jaso.log.protocol.DB_item;
 import jaso.log.protocol.LogData;
 import jaso.log.protocol.LogRequest;
 import jaso.log.protocol.LogServiceGrpc;
-import jaso.log.protocol.LogServiceGrpc.LogServiceBlockingStub;
 import jaso.log.protocol.Logged;
 import jaso.log.protocol.Status;
-import jaso.log.protocol.WhoIsLeaderRequest;
-import jaso.log.protocol.WhoIsLeaderResult;
 
 public class Db_LogPublisher {
 	

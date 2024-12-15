@@ -84,6 +84,7 @@ public class Partition implements AlarmClock.Handler {
 	private synchronized boolean isLeader() {
 		return raftStateXXX == State.LEADER;
 	}
+	@SuppressWarnings("unused")
 	private synchronized boolean isCandidate() {
 		return raftStateXXX == State.CANDIDATE;
 	}

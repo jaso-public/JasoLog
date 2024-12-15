@@ -51,7 +51,8 @@ public class SimpleLogServer {
        	Configurator.setRootLevel(Level.INFO);	 
         
        	RaftServerState state = makeState();
-       	ServerList serverList = ServerList.newBuilder()
+       	@SuppressWarnings("unused")
+		ServerList serverList = ServerList.newBuilder()
        			.addServerIds("server-da30bb70-05ca-4b7f-8853-15729f82d5a6")
        			.build();
        	state.openPartition("part-ae93ed18");

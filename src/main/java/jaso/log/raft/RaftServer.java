@@ -23,8 +23,6 @@ import jaso.log.protocol.CreatePartitionResult;
 import jaso.log.protocol.LogServiceGrpc;
 import jaso.log.protocol.PeerMessage;
 import jaso.log.protocol.ServerList;
-import jaso.log.protocol.WhoIsLeaderRequest;
-import jaso.log.protocol.WhoIsLeaderResult;
 
 public class RaftServer {
 	private static Logger log = LogManager.getLogger(RaftServer.class);
@@ -152,29 +150,6 @@ public class RaftServer {
            
             responseObserver.onNext(result);
             responseObserver.onCompleted();
-        }
-        
-        @Override
-        public void onLeaderQuery(WhoIsLeaderRequest request, StreamObserver<WhoIsLeaderResult> responseObserver) {
-        	String partitionId = request.getPartitionId();
-        
-            log.info("Received WhoIsLeaderRequest for partition: " + partitionId+" clientAddress:"+getClientAddress());
-
-            Partition partition = state.getPartition(partitionId);
-            String leader = "Unknown";
-            if(partition!=null) {
-            	if(partition.leaderId != null) {
-            		leader = partition.leaderId;
-            	}
-            }
-            
-            WhoIsLeaderResult result = WhoIsLeaderResult.newBuilder()
-            		.setPartitionId(partitionId)
-            		.setLeaderId(leader)
-                    .build();
-           
-            responseObserver.onNext(result);
-            responseObserver.onCompleted();
-        }
-    }
+        }       
+     }
 }
